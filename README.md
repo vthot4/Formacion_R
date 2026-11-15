@@ -1,6 +1,6 @@
 # Formación en R: modelos estadísticos
 
-Curso de R con teoría y laboratorios para la asignatura *Modelos estadísticos* (Grado en Inteligencia Artificial). Va de la probabilidad y la simulación a la estimación, los contrastes, la regresión y los modelos lineales generalizados, con un nivel de grado avanzado. El repositorio irá creciendo con nuevos temas.
+Curso de R con teoría y laboratorios para la asignatura *Modelos estadísticos* (Grado en Inteligencia Artificial). Va de la probabilidad y la simulación a la estimación, los contrastes, los índices de riesgo, las técnicas diagnósticas, la regresión y los modelos lineales generalizados, con un nivel de grado avanzado. El repositorio irá creciendo con nuevos temas.
 
 ## Leer el libro
 
@@ -22,8 +22,10 @@ Ambos se regeneran solos con cada cambio en `main` (workflow `.github/workflows/
 | 7. Operaciones con variables aleatorias y teoremas límite | [teoría](temas/07-operaciones-limites/teoria.qmd) | [laboratorio](temas/07-operaciones-limites/laboratorio.qmd) | borrador |
 | 8. Estimación puntual y por intervalos | [teoría](temas/08-estimacion/teoria.qmd) | [laboratorio](temas/08-estimacion/laboratorio.qmd) | borrador |
 | 9. Contrastes de hipótesis | [teoría](temas/09-contrastes/teoria.qmd) | [laboratorio](temas/09-contrastes/laboratorio.qmd) | borrador |
-| 10. Regresión lineal | [teoría](temas/10-regresion/teoria.qmd) | [laboratorio](temas/10-regresion/laboratorio.qmd) | borrador |
-| 11. Modelos lineales generalizados | [teoría](temas/11-modelos-lineales-generalizados/teoria.qmd) | [laboratorio](temas/11-modelos-lineales-generalizados/laboratorio.qmd) | borrador |
+| 10. Índices de riesgo | [teoría](temas/10-indices-riesgo/teoria.qmd) | [laboratorio](temas/10-indices-riesgo/laboratorio.qmd) | borrador |
+| 11. Técnicas diagnósticas | [teoría](temas/11-tecnicas-diagnosticas/teoria.qmd) | [laboratorio](temas/11-tecnicas-diagnosticas/laboratorio.qmd) | borrador |
+| 12. Regresión lineal | [teoría](temas/12-regresion/teoria.qmd) | [laboratorio](temas/12-regresion/laboratorio.qmd) | borrador |
+| 13. Modelos lineales generalizados | [teoría](temas/13-modelos-lineales-generalizados/teoria.qmd) | [laboratorio](temas/13-modelos-lineales-generalizados/laboratorio.qmd) | borrador |
 
 ## Requisitos
 

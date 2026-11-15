@@ -1,0 +1,5 @@
+# Técnicas diagnósticas
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

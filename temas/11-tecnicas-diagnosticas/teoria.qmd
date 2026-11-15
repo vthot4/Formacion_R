@@ -1,0 +1,295 @@
+## Teoría
+
+### Objetivos
+
+- Evaluar una prueba diagnóstica dicotómica con sensibilidad, especificidad, valores predictivos y razones de verosimilitud.
+- Entender por qué los valores predictivos dependen de la prevalencia y las razones de verosimilitud no.
+- Actualizar la probabilidad de enfermedad con el teorema de Bayes.
+- Analizar un biomarcador continuo con la curva ROC, el AUC y el punto de corte óptimo.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(2026)
+```
+
+### Diagnóstico dicotómico
+
+Una **prueba diagnóstica** $X$ clasifica a cada individuo como positivo ($X=1$) o negativo ($X=0$); la **enfermedad** real es $Y$ ($Y=1$ enfermo, $Y=0$ sano). La tabla $2\times 2$ cruza ambas:
+
+|  | Prueba $+$ ($X=1$) | Prueba $-$ ($X=0$) | Total |
+|---|:---:|:---:|:---:|
+| Enfermo ($Y=1$) | $a=VP$ | $b=FN$ | $r_1=a+b$ |
+| Sano ($Y=0$) | $c=FP$ | $d=VN$ | $r_0=c+d$ |
+| Total | $s_1=a+c$ | $s_0=b+d$ | $n$ |
+
+donde $VP$, $FN$, $FP$ y $VN$ son verdaderos positivos, falsos negativos, falsos positivos y verdaderos negativos. Es la misma tabla que en los índices de riesgo, pero ahora $X$ es la prueba y $Y$ la enfermedad.
+
+```{r}
+a <- 90; b <- 10; c <- 150; d <- 750          # VP, FN, FP, VN
+r1 <- a + b; r0 <- c + d; s1 <- a + c; s0 <- b + d; n <- a + b + c + d
+tab <- matrix(c(a, b, c, d), 2, byrow = TRUE,
+              dimnames = list(Real = c("Enfermo", "Sano"), Prueba = c("+", "-")))
+addmargins(tab)
+```
+
+### Sensibilidad y especificidad
+
+- **Sensibilidad** $se=P(X=1\mid Y=1)$: probabilidad de que un **enfermo** dé positivo. Se estima $\widehat{se}=a/r_1$. También se llama fracción de verdaderos positivos ($fvp$).
+- **Especificidad** $es=P(X=0\mid Y=0)$: probabilidad de que un **sano** dé negativo. $\widehat{es}=d/r_0$. Su complemento es la fracción de falsos positivos, $ffp=1-es$.
+
+Ambas son **proporciones** calculadas dentro de cada fila, así que sus intervalos de confianza son los de una proporción (Wilson o exacto):
+
+```{r}
+se <- a / r1; es <- d / r0
+c(sensibilidad = se, especificidad = es)
+prop.test(a, r1, correct = FALSE)$conf.int       # IC de Wilson para la sensibilidad
+binom.test(d, r0)$conf.int                       # IC exacto para la especificidad
+```
+
+Dos propiedades importantes:
+
+- **No dependen de la prevalencia** $\pi=P(Y=1)$, porque se calculan dentro de enfermos o de sanos; miden la calidad intrínseca de la prueba.
+- **Suelen compensarse**: con un biomarcador continuo, bajar el umbral aumenta la sensibilidad y reduce la especificidad.
+
+En un contraste de hipótesis, si $X=1$ significa «concluir $H_1$» e $Y=1$ «$H_1$ es cierta», entonces $\alpha=1-es$ (error de tipo I), $\beta=1-se$ (error de tipo II) y la potencia es $1-\beta=se$.
+
+#### Índice de Youden y eficacia
+
+Una prueba que clasifica al azar cumple $se+es=1$. El **índice de Youden** mide cuánto mejora respecto al azar, y la **eficacia** es la probabilidad de acertar:
+
+$$J=se+es-1=fvp-ffp\in[-1,1],\qquad \text{eficacia}=\pi\,se+(1-\pi)\,es.$$
+
+La probabilidad de error es su complemento. Por la ley de la probabilidad total,
+
+$$P(\text{error})=P(X=0,Y=1)+P(X=1,Y=0)=\pi(1-se)+(1-\pi)(1-es)=1-\text{eficacia}.$$
+
+```{r}
+pi_hat <- r1 / n
+c(youden = se + es - 1,
+  eficacia = pi_hat * se + (1 - pi_hat) * es,
+  error = pi_hat * (1 - se) + (1 - pi_hat) * (1 - es))
+```
+
+### Valores predictivos
+
+Responden a la pregunta clínica: dado el resultado, ¿cuál es la probabilidad de estar enfermo?
+
+- **Valor predictivo positivo** $vpp=P(Y=1\mid X=1)$, estimado por $a/s_1$.
+- **Valor predictivo negativo** $vpn=P(Y=0\mid X=0)$, estimado por $d/s_0$.
+
+```{r}
+c(vpp = a / s1, vpn = d / s0)
+```
+
+A diferencia de $se$ y $es$, **dependen de la prevalencia**. Por el teorema de Bayes:
+
+$$vpp=\frac{se\cdot\pi}{se\cdot\pi+(1-es)(1-\pi)},\qquad vpn=\frac{es\,(1-\pi)}{es\,(1-\pi)+(1-se)\,\pi}.$$
+
+::: {.callout-important}
+Estimar $vpp$ y $vpn$ como $a/s_1$ y $d/s_0$ solo es válido si la muestra conserva la prevalencia de la población (diseño transversal). En un estudio con enfermos y sanos fijados por el investigador hay que usar las fórmulas de Bayes con la prevalencia real.
+:::
+
+```{r}
+vp <- function(se, es, pi) {
+  c(vpp = se * pi / (se * pi + (1 - es) * (1 - pi)),
+    vpn = es * (1 - pi) / (es * (1 - pi) + (1 - se) * pi))
+}
+sapply(c(0.001, 0.01, 0.1, 0.5), function(p) vp(0.9, 0.95, p))
+```
+
+```{r}
+#| label: fig-vpp
+#| fig-cap: "Valor predictivo positivo según la prevalencia, con sensibilidad 0,9 y distintas especificidades."
+expand_grid(pi = seq(0.001, 0.5, length.out = 200), es = c(0.80, 0.90, 0.99)) |>
+  mutate(vpp = 0.9 * pi / (0.9 * pi + (1 - es) * (1 - pi)), es = factor(es)) |>
+  ggplot(aes(pi, vpp, color = es)) +
+  geom_line() +
+  labs(x = "Prevalencia", y = "VPP", color = "Especificidad")
+```
+
+Con prevalencia baja, incluso una prueba con buena especificidad produce **mayoría de falsos positivos**: es la razón por la que el cribado de enfermedades raras exige confirmación.
+
+### Razones de verosimilitud
+
+Comparan cuánto más probable es un resultado en enfermos que en sanos:
+
+$$lrp=\frac{P(X=1\mid Y=1)}{P(X=1\mid Y=0)}=\frac{se}{1-es},\qquad lrn=\frac{P(X=0\mid Y=1)}{P(X=0\mid Y=0)}=\frac{1-se}{es}.$$
+
+Un buen positivo tiene $lrp\gg 1$ y un buen negativo, $lrn$ cercana a 0; el valor 1 significa que el resultado no aporta información. Como solo dependen de $se$ y $es$, **no dependen de la prevalencia**.
+
+#### Actualización bayesiana
+
+Su utilidad práctica es que **multiplican los odds**:
+
+$$\underbrace{\frac{P(Y=1\mid X)}{P(Y=0\mid X)}}_{\text{odds a posteriori}}=\underbrace{\frac{P(X\mid Y=1)}{P(X\mid Y=0)}}_{lr}\cdot\underbrace{\frac{\pi}{1-\pi}}_{\text{odds a priori}}.$$
+
+Es el teorema de Bayes escrito en odds. Con $X=1$ el factor es $lrp$; con $X=0$ es $lrn$. Los odds a posteriori tras un positivo son $vpp/(1-vpp)$, y tras un negativo, $(1-vpn)/vpn$.
+
+```{r}
+prob_posterior <- function(pre, lr) { odds <- pre / (1 - pre) * lr; odds / (1 + odds) }
+
+lrp <- se / (1 - es); lrn <- (1 - se) / es
+c(lrp = lrp, lrn = lrn)
+
+prob_posterior(pre = pi_hat, lr = lrp)       # coincide con el vpp
+prob_posterior(pre = pi_hat, lr = lrn)       # coincide con 1 - vpn
+```
+
+Si se aplican dos pruebas **condicionalmente independientes** dado el estado real, las razones de verosimilitud se multiplican:
+
+```{r}
+prob_posterior(0.05, lr = lrp * 4)           # un positivo en la prueba A (lrp) y otro en la B (lrp = 4)
+```
+
+#### Intervalos de confianza
+
+Como $lrp=\dfrac{a/r_1}{c/r_0}$ tiene la misma estructura que un riesgo relativo (las proporciones se calculan dentro de $r_1$ y $r_0$), el método delta da
+
+$$\widehat{EE}[\ln\widehat{lrp}]=\sqrt{\tfrac1a-\tfrac1{r_1}+\tfrac1c-\tfrac1{r_0}},\qquad \widehat{EE}[\ln\widehat{lrn}]=\sqrt{\tfrac1b-\tfrac1{r_1}+\tfrac1d-\tfrac1{r_0}}.$$
+
+```{r}
+ic_lr <- function(est, ee, z = qnorm(0.975)) exp(log(est) + c(-1, 1) * z * ee)
+ic_lr(lrp, sqrt(1 / a - 1 / r1 + 1 / c - 1 / r0))
+ic_lr(lrn, sqrt(1 / b - 1 / r1 + 1 / d - 1 / r0))
+```
+
+#### Odds ratio diagnóstico
+
+El cociente $lrp/lrn=\dfrac{ad}{bc}$ es el odds ratio de la tabla (tema anterior) y resume la discriminación de la prueba en un solo número:
+
+```{r}
+c(lrp / lrn, a * d / (b * c))
+```
+
+### Diagnóstico continuo y curva ROC
+
+Un **biomarcador** $X$ continuo se convierte en prueba dicotómica con un **punto de corte** $c$: positivo si $X\ge c$. Para cada $c$,
+
+$$se(c)=P(X\ge c\mid Y=1)=fvp(c),\qquad ffp(c)=P(X\ge c\mid Y=0)=1-es(c).$$
+
+La **curva ROC** (*receiver operating characteristic*) representa $fvp(c)$ frente a $ffp(c)$ al variar $c$. Una prueba inútil sigue la diagonal; una perfecta pasa por la esquina $(0,1)$.
+
+Usamos como biomarcador la masa corporal de pingüinos Adelie para detectar el sexo macho ($Y=1$):
+
+```{r}
+adelie <- penguins |> filter(species == "Adelie", !is.na(sex)) |>
+  mutate(y = as.numeric(sex == "male"))
+
+roc_manual <- function(y, x) {
+  cortes <- sort(unique(c(-Inf, x, Inf)))
+  map_dfr(cortes, function(cc) {
+    tibble(corte = cc, fvp = mean(x[y == 1] >= cc), ffp = mean(x[y == 0] >= cc))
+  })
+}
+roc <- roc_manual(adelie$y, adelie$body_mass_g)
+head(roc, 3)
+```
+
+#### Área bajo la curva
+
+El **AUC** resume la curva en un número entre 0 y 1 y se calcula con la regla trapezoidal:
+
+$$\widehat{auc}=\sum_{i}(ffp_{i-1}-ffp_i)\,\frac{fvp_i+fvp_{i-1}}{2}.$$
+
+Tiene una interpretación probabilística exacta: $auc=P(X_1>X_0)$, la probabilidad de que un enfermo elegido al azar tenga un valor mayor que un sano elegido al azar (con empates contando $1/2$). Es equivalente al estadístico $U$ de Mann-Whitney:
+
+$$\widehat{auc}=\frac{U}{n_1n_0}.$$
+
+```{r}
+roc_ord <- roc |> arrange(ffp, fvp)
+auc_trapecios <- sum(diff(roc_ord$ffp) * (head(roc_ord$fvp, -1) + tail(roc_ord$fvp, -1)) / 2)
+
+x1 <- adelie$body_mass_g[adelie$y == 1]; x0 <- adelie$body_mass_g[adelie$y == 0]
+u <- wilcox.test(x1, x0)$statistic
+c(trapecios = auc_trapecios,
+  mann_whitney = unname(u) / (length(x1) * length(x0)),
+  prob_directa = mean(outer(x1, x0, ">") + 0.5 * outer(x1, x0, "==")))
+```
+
+```{r}
+#| label: fig-roc
+#| fig-cap: "Curva ROC de la masa corporal para identificar machos Adelie."
+ggplot(roc, aes(ffp, fvp)) +
+  geom_step() +
+  geom_abline(linetype = "dashed") +
+  coord_equal() +
+  labs(x = "ffp = 1 - especificidad", y = "fvp = sensibilidad",
+       subtitle = sprintf("AUC = %.3f", auc_trapecios))
+```
+
+Valores de referencia: $auc=0{,}5$ equivale al azar; si $auc<0{,}5$ el biomarcador funciona al revés (basta invertir la regla de clasificación, lo que da $1-auc$).
+
+#### Modelo binormal
+
+Si $X_1\sim N(\mu_1,\sigma_1)$ y $X_0\sim N(\mu_0,\sigma_0)$, con $a=(\mu_1-\mu_0)/\sigma_1$ y $b=\sigma_0/\sigma_1$,
+
+$$roc(t)=\Phi\big(a+b\,\Phi^{-1}(t)\big),\qquad auc=\Phi\!\left(\frac{a}{\sqrt{1+b^2}}\right).$$
+
+La deducción del $auc$ es inmediata con $auc=P(X_1-X_0>0)$ y $X_1-X_0\sim N(\mu_1-\mu_0,\sqrt{\sigma_1^2+\sigma_0^2})$. Lo comprobamos por simulación:
+
+```{r}
+#| label: fig-binormal
+#| fig-cap: "Curva ROC binormal teórica (roja) frente a la empírica de una muestra simulada."
+mu1 <- 1.2; s1_ <- 1.5; mu0 <- 0; s0_ <- 1
+a_b <- (mu1 - mu0) / s1_; b_b <- s0_ / s1_
+auc_teorico <- pnorm(a_b / sqrt(1 + b_b^2))
+
+x1 <- rnorm(5000, mu1, s1_); x0 <- rnorm(5000, mu0, s0_)
+y <- c(rep(1, 5000), rep(0, 5000)); x <- c(x1, x0)
+auc_rank <- function(y, score) {
+  r <- rank(score); n1 <- sum(y == 1); n0 <- sum(y == 0)
+  (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+c(teorico = auc_teorico, empirico = auc_rank(y, x))
+
+ggplot(roc_manual(y, x), aes(ffp, fvp)) +
+  geom_step() +
+  stat_function(fun = function(t) pnorm(a_b + b_b * qnorm(t)), color = "red") +
+  geom_abline(linetype = "dashed") + coord_equal()
+```
+
+### Punto de corte óptimo
+
+No se pueden maximizar $se(c)$ y $es(c)$ a la vez; hay que elegir un compromiso. Criterios habituales:
+
+- **Índice de Youden**: el corte que maximiza $fvp(c)-ffp(c)$ (máxima distancia vertical a la diagonal).
+- **Esquina noroeste**: el corte cuyo punto de la curva está más cerca de $(0,1)$.
+- **Basado en costes**: si un falso negativo cuesta $C_{FN}$ y un falso positivo $C_{FP}$, se minimiza $\pi\,C_{FN}(1-fvp)+(1-\pi)\,C_{FP}\,ffp$.
+
+```{r}
+pi_a <- mean(adelie$y)
+optimos <- roc |>
+  filter(is.finite(corte)) |>
+  mutate(youden = fvp - ffp,
+         noroeste = sqrt(ffp^2 + (1 - fvp)^2),
+         coste = pi_a * 5 * (1 - fvp) + (1 - pi_a) * 1 * ffp)       # un FN cuesta 5 veces un FP
+
+bind_rows(
+  youden = optimos |> slice_max(youden, n = 1, with_ties = FALSE),
+  noroeste = optimos |> slice_min(noroeste, n = 1, with_ties = FALSE),
+  coste_5_a_1 = optimos |> slice_min(coste, n = 1, with_ties = FALSE),
+  .id = "criterio"
+) |> select(criterio, corte, fvp, ffp)
+```
+
+Cuando el falso negativo es más grave, el corte óptimo baja: se acepta más falsos positivos a cambio de no perder enfermos.
+
+#### Incertidumbre del AUC
+
+El AUC es una estimación muestral; un intervalo por **bootstrap** cuantifica su incertidumbre:
+
+```{r}
+auc_boot <- replicate(2000, {
+  i <- sample(nrow(adelie), replace = TRUE)
+  auc_rank(adelie$y[i], adelie$body_mass_g[i])
+})
+c(auc = auc_rank(adelie$y, adelie$body_mass_g), quantile(auc_boot, c(0.025, 0.975)))
+```
+
+### Resumen
+
+- $se$, $es$, $lrp$ y $lrn$ describen la prueba y **no dependen de la prevalencia**; $vpp$ y $vpn$ sí.
+- Bayes en odds: $\text{odds}_{post}=lr\cdot\text{odds}_{prior}$; con prevalencia baja, un positivo suele ser falso.
+- La curva ROC recoge todos los compromisos $se$–$es$; $auc=P(X_1>X_0)=U/(n_1n_0)$.
+- El punto de corte se elige por Youden, por cercanía a $(0,1)$ o por costes de error.

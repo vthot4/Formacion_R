@@ -23,8 +23,10 @@ book:
     - temas/07-operaciones-limites/tema.qmd
     - temas/08-estimacion/tema.qmd
     - temas/09-contrastes/tema.qmd
-    - temas/10-regresion/tema.qmd
-    - temas/11-modelos-lineales-generalizados/tema.qmd
+    - temas/10-indices-riesgo/tema.qmd
+    - temas/11-tecnicas-diagnosticas/tema.qmd
+    - temas/12-regresion/tema.qmd
+    - temas/13-modelos-lineales-generalizados/tema.qmd
     # --- Añade aquí los nuevos temas (ver plantillas/tema/) ---
 
 lang: es

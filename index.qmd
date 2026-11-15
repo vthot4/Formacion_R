@@ -8,7 +8,9 @@ Este libro reúne el material del curso de **R para modelos estadísticos**. Cad
 |--------|-------|
 | Fundamentos | 1. Introducción a R · 2. Estadística descriptiva |
 | Probabilidad y simulación | 3. Variables aleatorias · 4. Modelos de probabilidad · 5. Transformaciones y simulación · 6. Vectores aleatorios · 7. Operaciones y teoremas límite |
-| Inferencia y modelos | 8. Estimación · 9. Contrastes de hipótesis · 10. Regresión lineal · 11. Modelos lineales generalizados |
+| Inferencia | 8. Estimación · 9. Contrastes de hipótesis |
+| Asociación y diagnóstico | 10. Índices de riesgo · 11. Técnicas diagnósticas |
+| Modelos | 12. Regresión lineal · 13. Modelos lineales generalizados |
 
 ## Cómo usar este material
 

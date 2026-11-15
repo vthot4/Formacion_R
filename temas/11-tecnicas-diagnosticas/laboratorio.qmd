@@ -1,0 +1,160 @@
+## Laboratorio
+
+### Objetivos
+
+Evaluar pruebas diagnósticas dicotómicas y continuas, comprobar el efecto de la prevalencia y elegir puntos de corte con distintos criterios.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(2026)
+
+auc_rank <- function(y, score) {
+  r <- rank(score); n1 <- sum(y == 1); n0 <- sum(y == 0)
+  (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+
+roc_manual <- function(y, x) {
+  cortes <- sort(unique(c(-Inf, x, Inf)))
+  map_dfr(cortes, function(cc) {
+    tibble(corte = cc, fvp = mean(x[y == 1] >= cc), ffp = mean(x[y == 0] >= cc))
+  })
+}
+
+prob_posterior <- function(pre, lr) { odds <- pre / (1 - pre) * lr; odds / (1 + odds) }
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: evaluar una prueba
+
+Una prueba rápida se aplica a 400 personas: de 80 enfermas da positivo en 68, y de 320 sanas da negativo en 288. Calcula $se$, $es$, $vpp$, $vpn$, $lrp$, $lrn$ y el índice de Youden con intervalos para $se$ y $es$.
+
+```{r}
+a <- 68; b <- 12; c <- 32; d <- 288
+r1 <- a + b; r0 <- c + d; s1 <- a + c; s0 <- b + d
+
+se <- a / r1; es <- d / r0
+c(se = se, es = es, vpp = a / s1, vpn = d / s0,
+  lrp = se / (1 - es), lrn = (1 - se) / es, youden = se + es - 1)
+
+prop.test(a, r1, correct = FALSE)$conf.int
+prop.test(d, r0, correct = FALSE)$conf.int
+```
+
+#### Ejercicio 2: efecto de la prevalencia
+
+La misma prueba (con $se$ y $es$ del ejercicio anterior) se usa en una población donde la prevalencia es del 1 %.
+
+```{r}
+vp <- function(se, es, pi) {
+  c(vpp = se * pi / (se * pi + (1 - es) * (1 - pi)),
+    vpn = es * (1 - pi) / (es * (1 - pi) + (1 - se) * pi))
+}
+rbind(estudio = vp(se, es, r1 / (r1 + r0)), poblacion_1pct = vp(se, es, 0.01))
+```
+
+El $vpp$ cae drásticamente aunque la prueba sea la misma: con prevalencia baja, la mayoría de los positivos son falsos positivos.
+
+#### Ejercicio 3: actualizar la probabilidad con razones de verosimilitud
+
+Un paciente tiene una probabilidad previa del 10 %. Calcula su probabilidad tras un positivo y tras un negativo.
+
+```{r}
+lrp <- se / (1 - es); lrn <- (1 - se) / es
+c(tras_positivo = prob_posterior(0.10, lrp), tras_negativo = prob_posterior(0.10, lrn))
+```
+
+#### Ejercicio 4: curva ROC y AUC con datos reales
+
+¿Cuánto discrimina la longitud de la aleta entre machos y hembras Gentoo?
+
+```{r}
+gentoo <- penguins |> filter(species == "Gentoo", !is.na(sex)) |>
+  mutate(y = as.numeric(sex == "male"))
+
+roc <- roc_manual(gentoo$y, gentoo$flipper_length_mm)
+auc_rank(gentoo$y, gentoo$flipper_length_mm)
+
+x1 <- gentoo$flipper_length_mm[gentoo$y == 1]; x0 <- gentoo$flipper_length_mm[gentoo$y == 0]
+unname(wilcox.test(x1, x0)$statistic) / (length(x1) * length(x0))    # coincide con el AUC
+```
+
+```{r}
+#| label: fig-lab-roc
+#| fig-cap: "Curva ROC de la longitud de aleta para identificar machos Gentoo."
+ggplot(roc, aes(ffp, fvp)) + geom_step() + geom_abline(linetype = "dashed") + coord_equal()
+```
+
+#### Ejercicio 5: punto de corte óptimo
+
+```{r}
+roc |>
+  filter(is.finite(corte)) |>
+  mutate(youden = fvp - ffp) |>
+  slice_max(youden, n = 1, with_ties = FALSE) |>
+  select(corte, fvp, ffp, youden)
+```
+
+### Ejercicios propuestos
+
+1. Un test de cribado tiene $se=0{,}95$ y $es=0{,}90$. Calcula $vpp$ y $vpn$ para prevalencias del 0,1 %, 1 %, 10 % y 30 %. ¿A partir de qué prevalencia supera el $vpp$ el 50 %?
+2. Con la tabla $a=45$, $b=15$, $c=20$, $d=120$, calcula los intervalos de confianza al 95 % de $lrp$ y $lrn$ y comprueba que $lrp/lrn$ coincide con el odds ratio $ad/bc$.
+3. Dos pruebas independientes se aplican de forma secuencial a una persona con probabilidad previa 2 %: la primera tiene $lrp=8$ y la segunda $lrp=12$. ¿Cuál es la probabilidad tras dos positivos? ¿Y tras un positivo y un negativo ($lrn_2=0{,}2$)?
+4. Con los pingüinos Adelie, calcula el AUC de `body_mass_g`, `flipper_length_mm` y `bill_length_mm` para identificar machos. ¿Cuál discrimina mejor? Da un intervalo bootstrap para el mejor.
+5. Un biomarcador tiene $\text{enfermos}\sim N(8,\,2)$ y $\text{sanos}\sim N(5,\,1{,}5)$. Calcula su AUC teórico con la fórmula binormal y verifícalo con una simulación de 20000 individuos por grupo.
+6. Con los datos del ejercicio 4 de los pingüinos Gentoo, halla el corte óptimo por Youden y por costes si un falso negativo es 3 veces más grave que un falso positivo. ¿Coinciden?
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+vp <- function(se, es, pi) {
+  c(vpp = se * pi / (se * pi + (1 - es) * (1 - pi)),
+    vpn = es * (1 - pi) / (es * (1 - pi) + (1 - se) * pi))
+}
+t(sapply(c(0.001, 0.01, 0.1, 0.3), function(p) vp(0.95, 0.90, p)))
+# vpp = 0.5  <=>  odds previo = 1/lrp  con lrp = 9.5  ->  pi = 1/(1 + 9.5)
+1 / (1 + 0.95 / (1 - 0.90))
+
+# 2
+a <- 45; b <- 15; c <- 20; d <- 120; r1 <- a + b; r0 <- c + d
+se <- a / r1; es <- d / r0
+lrp <- se / (1 - es); lrn <- (1 - se) / es
+ic <- function(est, ee) exp(log(est) + c(-1, 1) * qnorm(0.975) * ee)
+ic(lrp, sqrt(1 / a - 1 / r1 + 1 / c - 1 / r0))
+ic(lrn, sqrt(1 / b - 1 / r1 + 1 / d - 1 / r0))
+c(lrp / lrn, a * d / (b * c))
+
+# 3
+prob_posterior(0.02, 8 * 12)
+prob_posterior(0.02, 8 * 0.2)
+
+# 4
+adelie <- penguins |> filter(species == "Adelie", !is.na(sex), !is.na(bill_length_mm)) |>
+  mutate(y = as.numeric(sex == "male"))
+aucs <- sapply(c("body_mass_g", "flipper_length_mm", "bill_length_mm"),
+               function(v) auc_rank(adelie$y, adelie[[v]]))
+aucs
+mejor <- names(which.max(aucs))
+b <- replicate(2000, { i <- sample(nrow(adelie), replace = TRUE); auc_rank(adelie$y[i], adelie[[mejor]][i]) })
+quantile(b, c(0.025, 0.975))
+
+# 5: a = (8-5)/2, b = 1.5/2
+a_ <- (8 - 5) / 2; b_ <- 1.5 / 2
+pnorm(a_ / sqrt(1 + b_^2))
+x1 <- rnorm(20000, 8, 2); x0 <- rnorm(20000, 5, 1.5)
+auc_rank(c(rep(1, 20000), rep(0, 20000)), c(x1, x0))
+
+# 6
+pi_g <- mean(gentoo$y)
+roc |> filter(is.finite(corte)) |>
+  mutate(youden = fvp - ffp, coste = pi_g * 3 * (1 - fvp) + (1 - pi_g) * ffp) |>
+  summarise(corte_youden = corte[which.max(youden)], corte_coste = corte[which.min(coste)])
+```
+:::

@@ -1,0 +1,139 @@
+## Laboratorio
+
+### Objetivos
+
+Estimar índices de riesgo en distintos diseños, comprobar la cobertura de sus intervalos por simulación y detectar la confusión.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+
+tabla_2x2 <- function(a, b, c, d) {
+  matrix(c(a, b, c, d), nrow = 2, byrow = TRUE,
+         dimnames = list(Y = c("Y=1", "Y=0"), X = c("X=1", "X=0")))
+}
+
+indices_riesgo <- function(a, b, c, d, alfa = 0.05) {
+  s1 <- a + c; s0 <- b + d
+  z <- qnorm(1 - alfa / 2)
+  p11 <- a / s1; p10 <- b / s0
+  dr <- p11 - p10; ee_dr <- sqrt(a * c / s1^3 + b * d / s0^3)
+  rr <- p11 / p10; ee_rr <- sqrt(1 / a - 1 / s1 + 1 / b - 1 / s0)
+  or <- a * d / (b * c); ee_or <- sqrt(1 / a + 1 / b + 1 / c + 1 / d)
+  tibble(indice = c("dr", "rr", "or"), estimacion = c(dr, rr, or),
+         inferior = c(dr - z * ee_dr, exp(log(rr) - z * ee_rr), exp(log(or) - z * ee_or)),
+         superior = c(dr + z * ee_dr, exp(log(rr) + z * ee_rr), exp(log(or) + z * ee_or)))
+}
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: un ensayo clínico
+
+De 100 pacientes que reciben placebo recaen 35, y de 100 que reciben el fármaco recaen 20. Toma $X=1$ como «placebo» e $Y=1$ como «recaída».
+
+```{r}
+tab <- tabla_2x2(a = 35, b = 20, c = 65, d = 80)
+tab
+indices_riesgo(35, 20, 65, 80)
+```
+
+Interpretación: el placebo aumenta el riesgo de recaída en $0{,}15$ (15 puntos porcentuales) y lo multiplica por $1{,}75$.
+
+#### Ejercicio 2: contraste de asociación
+
+```{r}
+chisq.test(tab, correct = FALSE)
+prop.test(c(35, 20), c(100, 100), correct = FALSE)
+fisher.test(tab)$p.value
+```
+
+#### Ejercicio 3: número necesario a tratar
+
+```{r}
+dr <- 35 / 100 - 20 / 100
+1 / dr          # pacientes a tratar con el fármaco en lugar de placebo para evitar una recaída
+```
+
+#### Ejercicio 4: casos y controles
+
+Un estudio de casos y controles sobre una exposición profesional: 80 casos (50 expuestos) y 120 controles (40 expuestos). Calcula el odds ratio con su intervalo y comprueba que el riesgo relativo «ingenuo» no es interpretable.
+
+```{r}
+# a = casos expuestos, b = casos no expuestos, c = controles expuestos, d = controles no expuestos
+a <- 50; b <- 30; c <- 40; d <- 80
+indices_riesgo(a, b, c, d)[3, ]
+(a / (a + c)) / (b / (b + d))      # "riesgo relativo" sin sentido: la proporción de casos la fijó el diseño
+```
+
+#### Ejercicio 5: cobertura del intervalo del odds ratio
+
+Con muestras pequeñas el intervalo de Wald del odds ratio puede no alcanzar el nivel nominal. Lo comprobamos con $\pi_{11}=0{,}4$, $\pi_{10}=0{,}2$ (odds ratio verdadero $2{,}67$).
+
+```{r}
+or_verdadero <- (0.4 / 0.6) / (0.2 / 0.8)
+cobertura_or <- function(s1, s0, nsim = 5000) {
+  mean(replicate(nsim, {
+    a <- rbinom(1, s1, 0.4); b <- rbinom(1, s0, 0.2)
+    c <- s1 - a; d <- s0 - b
+    if (min(a, b, c, d) == 0) return(NA)
+    ee <- sqrt(1 / a + 1 / b + 1 / c + 1 / d)
+    ic <- exp(log(a * d / (b * c)) + c(-1, 1) * 1.96 * ee)
+    ic[1] <= or_verdadero & or_verdadero <= ic[2]
+  }), na.rm = TRUE)
+}
+c(`n=20+20` = cobertura_or(20, 20), `n=50+50` = cobertura_or(50, 50), `n=200+200` = cobertura_or(200, 200))
+```
+
+### Ejercicios propuestos
+
+1. En una cohorte, 18 de 60 trabajadores expuestos y 12 de 140 no expuestos desarrollan una enfermedad. Calcula $dr$, $rr$ y $or$ con sus intervalos al 95 % e interpreta cada uno.
+2. Contrasta la asociación del ejercicio anterior con $z$, $\chi^2$ y Fisher. ¿Coinciden $z^2$ y $\chi^2$?
+3. Comprueba numéricamente que $or\approx rr$ cuando el suceso es raro: toma $\pi_{10}=0{,}01$ y $rr=3$, y repite con $\pi_{10}=0{,}30$ y $rr=2$.
+4. Simula la cobertura del intervalo de confianza del riesgo relativo con $\pi_{11}=0{,}3$, $\pi_{10}=0{,}15$ y $s_1=s_0=40$.
+5. Con `UCBAdmissions`, calcula el odds ratio global y el de cada departamento. Aquí un odds ratio menor que 1 favorece a las mujeres: ¿en qué departamentos ocurre?
+6. Con la tabla $a=10$, $b=0$, $c=5$, $d=20$ el odds ratio no está definido. Aplica la corrección de Haldane-Anscombe (sumar $0{,}5$ a cada celda) y calcula $\widehat{or}$ y su intervalo; contrasta después con `fisher.test()`.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1: a = 18, b = 12, s1 = 60, s0 = 140 -> c = 42, d = 128
+indices_riesgo(18, 12, 42, 128)
+
+# 2
+t1 <- tabla_2x2(18, 12, 42, 128)
+prop.test(c(18, 12), c(60, 140), correct = FALSE)$statistic     # equivale a z^2
+chisq.test(t1, correct = FALSE)$statistic
+fisher.test(t1)$p.value
+
+# 3
+or_de <- function(pi10, rr) { pi11 <- rr * pi10; (pi11 / (1 - pi11)) / (pi10 / (1 - pi10)) }
+c(raro = or_de(0.01, 3), frecuente = or_de(0.30, 2))
+
+# 4
+rr_v <- 0.3 / 0.15
+cob <- mean(replicate(5000, {
+  a <- rbinom(1, 40, 0.3); b <- rbinom(1, 40, 0.15)
+  if (a == 0 || b == 0) return(NA)
+  ee <- sqrt(1 / a - 1 / 40 + 1 / b - 1 / 40)
+  ic <- exp(log((a / 40) / (b / 40)) + c(-1, 1) * 1.96 * ee)
+  ic[1] <= rr_v & rr_v <= ic[2]
+}), na.rm = TRUE)
+cob
+
+# 5: la tabla es Admit x Gender: "or" > 1 favorece a los hombres, < 1 a las mujeres
+or_t <- function(m) (m[1, 1] * m[2, 2]) / (m[1, 2] * m[2, 1])
+c(global = or_t(margin.table(UCBAdmissions, c(1, 2))))
+round(apply(UCBAdmissions, 3, or_t), 2)
+
+# 6
+a <- 10; b <- 0; c <- 5; d <- 20
+indices_riesgo(a + 0.5, b + 0.5, c + 0.5, d + 0.5)[3, ]
+fisher.test(tabla_2x2(a, b, c, d))
+```
+:::

@@ -1,0 +1,5 @@
+# Índices de riesgo
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

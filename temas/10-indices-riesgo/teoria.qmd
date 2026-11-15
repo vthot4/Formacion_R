@@ -1,0 +1,269 @@
+## Teoría
+
+### Objetivos
+
+- Describir la asociación entre dos variables dicotómicas con la tabla $2\times 2$ y distinguir los diseños prospectivo, retrospectivo y transversal.
+- Calcular, interpretar y construir intervalos de confianza para la diferencia de riesgos, el riesgo relativo y el odds ratio.
+- Deducir los errores típicos con el método delta y contrastarlos por simulación.
+- Aplicar los contrastes $z$, chi-cuadrado y de Fisher, y reconocer la confusión mediante Mantel-Haenszel.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+```
+
+### El esquema dicotómico
+
+Se estudia cómo una variable explicativa dicotómica $X$ (la **exposición**: 1 = expuesto) influye en una variable respuesta dicotómica $Y$ (el **resultado**: 1 = ocurre el suceso). Los datos se resumen en una tabla $2\times 2$ con esta notación:
+
+|  | $X=1$ | $X=0$ | Total |
+|---|:---:|:---:|:---:|
+| $Y=1$ | $a$ | $b$ | $r_1=a+b$ |
+| $Y=0$ | $c$ | $d$ | $r_0=c+d$ |
+| Total | $s_1=a+c$ | $s_0=b+d$ | $n$ |
+
+Con ella se estiman dos probabilidades condicionadas, los **riesgos**:
+
+$$\pi_{11}=P(Y=1\mid X=1)\ \to\ \hat\pi_{11}=\frac{a}{s_1},\qquad \pi_{10}=P(Y=1\mid X=0)\ \to\ \hat\pi_{10}=\frac{b}{s_0}.$$
+
+Cada índice de riesgo es una forma distinta de comparar $\pi_{11}$ con $\pi_{10}$.
+
+```{r}
+tabla_2x2 <- function(a, b, c, d) {
+  matrix(c(a, b, c, d), nrow = 2, byrow = TRUE,
+         dimnames = list(Y = c("Y=1", "Y=0"), X = c("X=1", "X=0")))
+}
+
+# Estudio de cohortes: 150 fumadores y 200 no fumadores seguidos un año
+tab <- tabla_2x2(a = 60, b = 40, c = 90, d = 160)
+tab
+addmargins(tab)
+```
+
+### Diseño del estudio y marginales
+
+El diseño determina **qué marginales fija el investigador**, y de ello depende qué índices se pueden estimar:
+
+| Diseño | Se fijan | Cómo se muestrea | Índices válidos |
+|---|---|---|---|
+| Prospectivo (cohortes) | $s_1,\ s_0$ | Se eligen expuestos y no expuestos y se observa el resultado | $dr$, $rr$, $or$ |
+| Retrospectivo (casos y controles) | $r_1,\ r_0$ | Se eligen enfermos y sanos y se mira la exposición | solo $or$ |
+| Transversal | $n$ | Una muestra de la población en un instante | $or$ (y $rr$ si hay muestreo aleatorio) |
+
+En un diseño de casos y controles, la proporción de enfermos la decide el investigador, así que $\pi_{11}$ y $\pi_{10}$ **no son estimables**. Lo comprobamos simulando una población con $\pi_{11}=0{,}10$ y $\pi_{10}=0{,}05$ (riesgo relativo real 2, odds ratio real $2{,}11$):
+
+```{r}
+N <- 2e5
+X <- rbinom(N, 1, 0.3)
+Y <- rbinom(N, 1, ifelse(X == 1, 0.10, 0.05))
+pob <- tibble(X, Y)
+
+indices_basicos <- function(d) {
+  a <- sum(d$Y == 1 & d$X == 1); b <- sum(d$Y == 1 & d$X == 0)
+  c <- sum(d$Y == 0 & d$X == 1); dd <- sum(d$Y == 0 & d$X == 0)
+  c(rr = (a / (a + c)) / (b / (b + dd)), or = (a * dd) / (b * c))
+}
+
+cohorte <- bind_rows(slice_sample(filter(pob, X == 1), n = 1000),
+                     slice_sample(filter(pob, X == 0), n = 1000))
+casos_controles <- bind_rows(slice_sample(filter(pob, Y == 1), n = 1000),
+                             slice_sample(filter(pob, Y == 0), n = 1000))
+
+rbind(verdadero = c(rr = 2, or = (0.10 / 0.90) / (0.05 / 0.95)),
+      cohorte = indices_basicos(cohorte),
+      casos_controles = indices_basicos(casos_controles))
+```
+
+El muestreo de casos y controles **distorsiona el riesgo relativo** (porque cambia la proporción de enfermos) pero conserva el odds ratio.
+
+### Función auxiliar con los tres índices
+
+Reunimos las fórmulas que se deducen a continuación en una sola función que devuelve cada estimación con su intervalo de confianza:
+
+```{r}
+indices_riesgo <- function(a, b, c, d, alfa = 0.05) {
+  s1 <- a + c; s0 <- b + d
+  z <- qnorm(1 - alfa / 2)
+  p11 <- a / s1; p10 <- b / s0
+
+  dr <- p11 - p10
+  ee_dr <- sqrt(a * c / s1^3 + b * d / s0^3)
+  rr <- p11 / p10
+  ee_rr <- sqrt(1 / a - 1 / s1 + 1 / b - 1 / s0)
+  or <- a * d / (b * c)
+  ee_or <- sqrt(1 / a + 1 / b + 1 / c + 1 / d)
+
+  tibble(indice = c("dr", "rr", "or"),
+         estimacion = c(dr, rr, or),
+         inferior = c(dr - z * ee_dr, exp(log(rr) - z * ee_rr), exp(log(or) - z * ee_or)),
+         superior = c(dr + z * ee_dr, exp(log(rr) + z * ee_rr), exp(log(or) + z * ee_or)))
+}
+indices_riesgo(60, 40, 90, 160)
+```
+
+### Diferencia de riesgos
+
+$$dr=\pi_{11}-\pi_{10}\in(-1,1),\qquad \widehat{dr}=\frac{a}{s_1}-\frac{b}{s_0}.$$
+
+Es un índice **absoluto**: indica cuántos casos más (o menos) por cada 100 expuestos respecto a 100 no expuestos. Su valor sin efecto es 0. Como diferencia de dos proporciones independientes,
+
+$$V[\widehat{dr}]=\frac{\pi_{11}(1-\pi_{11})}{s_1}+\frac{\pi_{10}(1-\pi_{10})}{s_0},$$
+
+que se estima sustituyendo $\hat\pi_{11}=a/s_1$ y $\hat\pi_{10}=b/s_0$:
+
+$$\widehat{EE}[\widehat{dr}]=\sqrt{\frac{ac}{s_1^3}+\frac{bd}{s_0^3}},\qquad IC_{1-\alpha}(dr)=\widehat{dr}\pm z_{1-\alpha/2}\,\widehat{EE}[\widehat{dr}].$$
+
+Para contrastar $H_0:dr=0$ se usa el error típico **bajo $H_0$**, en el que ambos riesgos valen $r_1/n$:
+
+$$z=\frac{\widehat{dr}}{\sqrt{\dfrac{r_1}{n}\dfrac{r_0}{n}\left(\dfrac{1}{s_1}+\dfrac{1}{s_0}\right)}}\ \sim\ N(0,1).$$
+
+```{r}
+a <- 60; b <- 40; c <- 90; d <- 160
+s1 <- a + c; s0 <- b + d; r1 <- a + b; r0 <- c + d; n <- a + b + c + d
+
+dr <- a / s1 - b / s0
+ee0 <- sqrt((r1 / n) * (r0 / n) * (1 / s1 + 1 / s0))
+z <- dr / ee0
+c(dr = dr, z = z, p_valor = 2 * pnorm(-abs(z)))
+```
+
+El test $z$ coincide con `prop.test()` sin corrección de continuidad, y $z^2$ es exactamente el estadístico chi-cuadrado de independencia:
+
+```{r}
+prop.test(c(a, b), c(s1, s0), correct = FALSE)
+chisq.test(tabla_2x2(a, b, c, d), correct = FALSE)$statistic
+z^2
+```
+
+::: {.callout-tip}
+**Número necesario a tratar.** Si $dr$ es la reducción absoluta de riesgo de un tratamiento, $NNT=1/|dr|$ es el número de pacientes que hay que tratar para evitar un caso. Con $|dr|=0{,}2$ hacen falta 5 pacientes.
+:::
+
+### Riesgo relativo
+
+$$rr=\frac{\pi_{11}}{\pi_{10}}\in(0,\infty),\qquad \widehat{rr}=\frac{a/s_1}{b/s_0}.$$
+
+Es un índice **relativo**: cuántas veces es más probable el resultado entre los expuestos. Su valor sin efecto es 1; $rr>1$ indica factor de riesgo y $rr<1$ factor protector. Equivale a $dr=0\iff rr=1$.
+
+$\widehat{rr}$ es asimétrico (vive en $(0,\infty)$), por lo que se trabaja con $\ln\widehat{rr}=\ln\hat\pi_{11}-\ln\hat\pi_{10}$. El **método delta** da, con $h(\pi)=\ln\pi$ y $h'(\pi)=1/\pi$:
+
+$$V[\ln\hat\pi]\approx V[\hat\pi]\,h'(\pi)^2=\frac{\pi(1-\pi)}{s}\cdot\frac{1}{\pi^2}=\frac{1-\pi}{\pi\,s}.$$
+
+Aplicado a los dos riesgos y estimando $\pi_{11}$ y $\pi_{10}$,
+
+$$\widehat{EE}[\ln\widehat{rr}]=\sqrt{\frac{1}{a}-\frac{1}{s_1}+\frac{1}{b}-\frac{1}{s_0}},\qquad IC_{1-\alpha}(rr)=\exp\!\Big(\ln\widehat{rr}\pm z_{1-\alpha/2}\,\widehat{EE}[\ln\widehat{rr}]\Big).$$
+
+Comprobamos la aproximación de la varianza por simulación ($\pi=0{,}3$, $s=100$):
+
+```{r}
+pi0 <- 0.3; s <- 100
+c(simulada = var(log(rbinom(1e5, s, pi0) / s)),
+  delta = (1 - pi0) / (pi0 * s))
+```
+
+Y el intervalo de confianza del riesgo relativo en el ejemplo:
+
+```{r}
+rr <- (a / s1) / (b / s0)
+ee_rr <- sqrt(1 / a - 1 / s1 + 1 / b - 1 / s0)
+exp(log(rr) + c(-1, 1) * qnorm(0.975) * ee_rr)
+```
+
+### Odds ratio
+
+El **odds** de una probabilidad $\pi$ es $o=\pi/(1-\pi)\in(0,\infty)$, y se recupera $\pi=o/(1+o)$. Un odds de 3 significa que el suceso es tres veces más probable que su ausencia ($\pi=0{,}75$).
+
+El **odds ratio** compara los odds de los expuestos y de los no expuestos:
+
+$$or=\frac{\pi_{11}/(1-\pi_{11})}{\pi_{10}/(1-\pi_{10})},\qquad \widehat{or}=\frac{a/c}{b/d}=\frac{ad}{bc}\quad\text{(razón de productos cruzados)}.$$
+
+Su valor sin efecto es 1 y $or>1\iff\pi_{11}>\pi_{10}$.
+
+#### Simetría: el odds ratio no depende de qué variable sea la respuesta
+
+Por el teorema de Bayes, $\dfrac{P(Y=1\mid X=1)}{P(Y=0\mid X=1)}=\dfrac{P(X=1\mid Y=1)}{P(X=1\mid Y=0)}\cdot\dfrac{P(Y=1)}{P(Y=0)}$. Al dividir los odds de $X=1$ entre los de $X=0$ el factor $P(Y=1)/P(Y=0)$ se cancela y queda
+
+$$or_X=\frac{P(X=1\mid Y=1)/P(X=0\mid Y=1)}{P(X=1\mid Y=0)/P(X=0\mid Y=0)}=or_Y.$$
+
+Por eso el odds ratio es válido también en casos y controles. En la tabla basta ver que $ad/bc$ no cambia al trasponerla.
+
+```{r}
+or_t <- function(m) (m[1, 1] * m[2, 2]) / (m[1, 2] * m[2, 1])
+c(or = or_t(tab), or_traspuesta = or_t(t(tab)))
+```
+
+#### Intervalo de confianza
+
+Con la transformación logarítmica, $\widehat{EE}[\ln\widehat{or}]=\sqrt{1/a+1/b+1/c+1/d}$ y
+
+$$IC_{1-\alpha}(or)=\exp\!\Big(\ln\widehat{or}\pm z_{1-\alpha/2}\sqrt{\tfrac1a+\tfrac1b+\tfrac1c+\tfrac1d}\Big).$$
+
+#### Relación con la regresión logística
+
+Si se ajusta $\operatorname{logit}P(Y=1)=\beta_0+\beta_1X$, entonces $\hat\beta_1=\ln\widehat{or}$ y su error típico es el de arriba. Es el vínculo con el tema de modelos lineales generalizados:
+
+```{r}
+datos <- tibble(Y = rep(c(1, 1, 0, 0), c(a, b, c, d)),
+                X = rep(c(1, 0, 1, 0), c(a, b, c, d)))
+m <- glm(Y ~ X, family = binomial, data = datos)
+
+rbind(glm = c(exp(coef(m)["X"]), exp(confint.default(m)["X", ])),
+      formula = indices_riesgo(a, b, c, d)[3, 2:4] |> unlist())
+```
+
+#### Odds ratio y riesgo relativo
+
+Si el suceso es **raro** ($\pi_{10}$ y $\pi_{11}$ pequeños), $1-\pi\approx 1$ y $or\approx rr$. Cuando es frecuente, el odds ratio **exagera** el riesgo relativo:
+
+```{r}
+#| label: fig-or-rr
+#| fig-cap: "Odds ratio correspondiente a un riesgo relativo real de 2 según el riesgo basal."
+tibble(pi10 = seq(0.01, 0.49, by = 0.01)) |>
+  mutate(pi11 = 2 * pi10,
+         or = (pi11 / (1 - pi11)) / (pi10 / (1 - pi10))) |>
+  ggplot(aes(pi10, or)) +
+  geom_line() +
+  geom_hline(yintercept = 2, linetype = "dashed") +
+  labs(x = expression(pi[10]~"(riesgo en no expuestos)"), y = "Odds ratio (con rr = 2)")
+```
+
+### Contrastes de asociación
+
+Los tres índices tienen el mismo valor sin efecto en el sentido de que $dr=0\iff rr=1\iff or=1\iff\pi_{11}=\pi_{10}$, así que contrastan la misma hipótesis nula de **independencia**. Se puede usar:
+
+- el test $z$ de diferencia de proporciones (equivalente al de $\chi^2$),
+- el test $\chi^2$ de independencia, $\chi^2=\sum_{ij}(n_{ij}-e_{ij})^2/e_{ij}$ con $e_{ij}=(\text{fila}_i\cdot\text{col}_j)/n$ y 1 grado de libertad,
+- el test exacto de **Fisher**, preferible cuando alguna frecuencia esperada es menor que 5.
+
+```{r}
+chisq.test(tab, correct = FALSE)$expected
+chisq.test(tab, correct = FALSE)
+fisher.test(tab)
+```
+
+`fisher.test()` devuelve además la estimación condicional del odds ratio y su intervalo exacto, ligeramente distintos de los de Wald.
+
+### Confusión y estratificación
+
+Una tercera variable $Z$ puede **confundir** la asociación entre $X$ e $Y$. El odds ratio global puede apuntar en sentido contrario al de cada estrato (paradoja de Simpson). Con los datos clásicos de admisión de Berkeley (`UCBAdmissions`: resultado de admisión según sexo y departamento):
+
+```{r}
+global <- margin.table(UCBAdmissions, c(1, 2))          # Admit x Gender
+global
+or_global <- or_t(global)                                 # hombres frente a mujeres: admitidos
+por_dpto <- apply(UCBAdmissions, 3, or_t)
+
+c(global = or_global)
+round(por_dpto, 2)
+mantelhaen.test(UCBAdmissions)$estimate                   # odds ratio común (Mantel-Haenszel)
+```
+
+El odds ratio global (hombres frente a mujeres, admisión) vale $1{,}84$: parece favorecer a los hombres. Pero dentro de cada departamento los odds ratio van de $0{,}35$ a $1{,}22$, y el estimador combinado de Mantel-Haenszel vale $0{,}905$, ligeramente a favor de las mujeres. La ventaja aparente desaparece e incluso se invierte porque las mujeres solicitaban más plazas en departamentos muy selectivos. La estratificación, o un modelo logístico que incluya $Z$, corrige la confusión.
+
+### Resumen
+
+- La tabla $2\times 2$ y su diseño determinan los índices válidos: $dr$ y $rr$ solo en estudios prospectivos, $or$ en cualquier diseño.
+- Intervalos: $dr$ en escala natural; $rr$ y $or$ en escala logarítmica (método delta) y luego se exponencia.
+- $or\approx rr$ solo si el suceso es raro; $e^{\hat\beta}$ de la regresión logística es el $\widehat{or}$.
+- Contraste de asociación: $z$ $\equiv$ $\chi^2$; Fisher con frecuencias esperadas pequeñas.
+- Ante una posible confusión, estratificar (Mantel-Haenszel) o ajustar un modelo.
