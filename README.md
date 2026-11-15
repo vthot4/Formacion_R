@@ -2,6 +2,13 @@
 
 Curso de R con teoría y laboratorios. El repositorio irá creciendo con nuevos temas, incluidos los específicos de la carrera.
 
+## Leer el libro
+
+- Web: <https://vthot4.github.io/Formacion_R/>
+- PDF para imprimir: <https://vthot4.github.io/Formacion_R/formacion-r.pdf>
+
+Ambos se regeneran solos con cada cambio en `main` (workflow `.github/workflows/publicar.yml`).
+
 ## Índice
 
 | Tema | Teoría | Laboratorio | Estado |

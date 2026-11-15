@@ -7,6 +7,11 @@ book:
   author: "Formación R"
   date: today
   output-file: formacion-r
+  site-url: https://vthot4.github.io/Formacion_R/
+  repo-url: https://github.com/vthot4/Formacion_R
+  downloads: [pdf]
+  sidebar:
+    search: true
   chapters:
     - index.qmd
     - temas/01-introduccion-r/tema.qmd
