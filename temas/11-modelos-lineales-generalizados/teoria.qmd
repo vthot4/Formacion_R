@@ -1,0 +1,202 @@
+## Teoría
+
+### Objetivos
+
+- Entender un modelo lineal generalizado (GLM) como la combinación de una familia de distribuciones, un predictor lineal y una función de enlace.
+- Ajustar e interpretar una regresión logística: odds, odds ratios y probabilidades.
+- Evaluar un clasificador con la matriz de confusión, la curva ROC y el AUC, usando datos de prueba.
+- Ajustar una regresión de Poisson y diagnosticar la sobredispersión.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+library(MASS, exclude = "select")
+set.seed(2026)
+```
+
+### Componentes de un GLM
+
+Un GLM generaliza la regresión lineal a respuestas que no son normales. Tiene tres componentes:
+
+1. **Componente aleatoria:** $Y_i$ sigue una distribución de la familia exponencial (normal, binomial, Poisson, gamma…) con media $\mu_i$.
+2. **Predictor lineal:** $\eta_i=\mathbf{x}_i^\top\boldsymbol\beta$.
+3. **Función de enlace:** $g(\mu_i)=\eta_i$, que relaciona la media con el predictor.
+
+| Respuesta | Familia | Enlace habitual | Modelo |
+|-----------|---------|-----------------|--------|
+| Continua | Normal | identidad | regresión lineal |
+| Binaria (0/1) | Binomial | logit | regresión logística |
+| Conteo | Poisson | logaritmo | regresión de Poisson |
+| Positiva y asimétrica | Gamma | inversa o log | regresión gamma |
+
+Los coeficientes se estiman por máxima verosimilitud; `glm()` lo hace con un algoritmo iterativo de mínimos cuadrados ponderados (IRLS).
+
+### Regresión logística
+
+Para una respuesta binaria $Y\in\{0,1\}$ con $p_i=P(Y_i=1)$:
+
+$$\operatorname{logit}(p_i)=\ln\frac{p_i}{1-p_i}=\beta_0+\beta_1x_{i1}+\cdots+\beta_kx_{ik},\qquad p_i=\frac{1}{1+e^{-\eta_i}}.$$
+
+Predecimos el sexo de un pingüino a partir de su masa (en kg) y su especie:
+
+```{r}
+pingu <- penguins |>
+  drop_na() |>
+  mutate(macho = as.numeric(sex == "male"), masa_kg = body_mass_g / 1000)
+
+m <- glm(macho ~ masa_kg + species, family = binomial, data = pingu)
+summary(m)
+```
+
+#### Interpretación: odds y odds ratios
+
+El **odds** es $p/(1-p)$. Cada coeficiente es el cambio en el **logit** por unidad del predictor; al exponenciarlo se obtiene el **odds ratio** (OR): el factor por el que se multiplican los odds.
+
+```{r}
+exp(cbind(OR = coef(m), confint(m)))
+```
+
+Por ejemplo, el OR de `masa_kg` indica cuánto se multiplican los odds de ser macho por cada kilogramo adicional, **a igualdad de especie**.
+
+#### Probabilidades predichas
+
+```{r}
+#| label: fig-logistica
+#| fig-cap: "Probabilidad estimada de que un pingüino sea macho según su masa y especie."
+malla <- expand_grid(masa_kg = seq(2.7, 6.3, length.out = 100),
+                     species = factor(levels(pingu$species), levels = levels(pingu$species)))
+malla$prob <- predict(m, malla, type = "response")
+
+ggplot(malla, aes(masa_kg, prob, color = species)) +
+  geom_line() +
+  geom_point(aes(y = macho), data = pingu, alpha = 0.2) +
+  labs(x = "Masa (kg)", y = "P(macho)", color = NULL)
+```
+
+### Estimación por máxima verosimilitud: IRLS a mano
+
+La log-verosimilitud de la logística es $\ell(\boldsymbol\beta)=\sum_i\{y_i\ln p_i+(1-y_i)\ln(1-p_i)\}$, con gradiente $X^\top(\mathbf{y}-\mathbf{p})$. El método de Newton-Raphson actualiza
+
+$$\boldsymbol\beta^{(t+1)}=\boldsymbol\beta^{(t)}+(X^\top WX)^{-1}X^\top(\mathbf{y}-\mathbf{p}),\qquad W=\operatorname{diag}\{p_i(1-p_i)\}.$$
+
+```{r}
+X <- model.matrix(~ masa_kg + species, data = pingu)
+y <- pingu$macho
+beta <- rep(0, ncol(X))
+
+for (iter in 1:25) {
+  p <- plogis(X %*% beta)
+  W <- as.numeric(p * (1 - p))
+  paso <- solve(t(X) %*% (W * X), t(X) %*% (y - p))
+  beta <- beta + paso
+  if (max(abs(paso)) < 1e-10) break
+}
+iter
+cbind(IRLS = drop(beta), glm = coef(m))
+```
+
+La inversa de $X^\top WX$ en el óptimo es la matriz de covarianzas asintótica de $\hat{\boldsymbol\beta}$: de ahí salen los errores típicos del resumen.
+
+### Bondad de ajuste y comparación de modelos
+
+La **devianza** $D=-2\ell$ (relativa al modelo saturado) generaliza la suma de cuadrados. Para modelos anidados, la diferencia de devianzas sigue aproximadamente una $\chi^2$ (**contraste de razón de verosimilitudes**).
+
+```{r}
+m0 <- glm(macho ~ 1, family = binomial, data = pingu)
+anova(m0, m, test = "Chisq")
+c(AIC_nulo = AIC(m0), AIC_modelo = AIC(m))
+1 - as.numeric(logLik(m) / logLik(m0))      # pseudo-R2 de McFadden
+```
+
+### Evaluación de un clasificador
+
+Con una probabilidad de corte $c$ (habitualmente 0,5) se clasifica como positivo si $\hat p\ge c$.
+
+```{r}
+prob <- predict(m, type = "response")
+clase <- as.numeric(prob >= 0.5)
+conf <- table(real = pingu$macho, predicho = clase)
+conf
+
+c(exactitud    = sum(diag(conf)) / sum(conf),
+  sensibilidad = conf["1", "1"] / sum(conf["1", ]),     # verdaderos positivos / positivos
+  especificidad = conf["0", "0"] / sum(conf["0", ]))    # verdaderos negativos / negativos
+```
+
+Cambiar el corte intercambia sensibilidad por especificidad. La **curva ROC** representa la sensibilidad frente a $1-$especificidad para todos los cortes, y el **AUC** (área bajo ella) es la probabilidad de que un positivo reciba una puntuación mayor que un negativo (0,5 = azar, 1 = perfecto). Se calcula con los rangos:
+
+```{r}
+auc <- function(y, score) {
+  r <- rank(score); n1 <- sum(y == 1); n0 <- sum(y == 0)
+  (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+
+roc <- map_dfr(seq(0, 1, by = 0.01), function(corte) {
+  pred <- prob >= corte
+  tibble(corte, tpr = mean(pred[pingu$macho == 1]), fpr = mean(pred[pingu$macho == 0]))
+})
+auc(pingu$macho, prob)
+```
+
+```{r}
+#| label: fig-roc
+#| fig-cap: "Curva ROC del modelo logístico."
+ggplot(roc, aes(fpr, tpr)) +
+  geom_path() +
+  geom_abline(linetype = "dashed") +
+  labs(x = "1 - especificidad", y = "Sensibilidad")
+```
+
+::: {.callout-important}
+Evaluar un clasificador con los mismos datos con que se ajustó es optimista. Hay que medir el rendimiento en datos **no usados** en el ajuste (partición entrenamiento/prueba o validación cruzada).
+:::
+
+```{r}
+idx <- sample(nrow(pingu), round(0.7 * nrow(pingu)))
+entrenamiento <- pingu[idx, ]; prueba <- pingu[-idx, ]
+m_ent <- glm(macho ~ masa_kg + species, family = binomial, data = entrenamiento)
+
+c(AUC_entrenamiento = auc(entrenamiento$macho, predict(m_ent, type = "response")),
+  AUC_prueba = auc(prueba$macho, predict(m_ent, prueba, type = "response")))
+```
+
+### Regresión de Poisson
+
+Para conteos, $Y_i\sim\text{Poisson}(\mu_i)$ con $\ln\mu_i=\mathbf{x}_i^\top\boldsymbol\beta$. Al exponenciar, cada coeficiente es un **cociente de tasas** (*rate ratio*). Usamos `warpbreaks`: número de roturas de hilo por telar según el tipo de lana y la tensión.
+
+```{r}
+mp <- glm(breaks ~ wool + tension, family = poisson, data = warpbreaks)
+summary(mp)
+exp(cbind(RR = coef(mp), confint(mp)))
+```
+
+Si las observaciones tienen distinta exposición (tiempo, población), se añade `offset(log(exposicion))` al modelo para modelar tasas.
+
+#### Sobredispersión
+
+La Poisson impone $V[Y]=E[Y]$. Si el cociente $D/\text{g.l.}$ es claramente mayor que 1 hay **sobredispersión**: los errores típicos quedan subestimados y los contrastes son demasiado optimistas.
+
+```{r}
+deviance(mp) / df.residual(mp)
+c(media = mean(warpbreaks$breaks), varianza = var(warpbreaks$breaks))
+```
+
+Dos remedios habituales: el modelo **quasi-Poisson** (corrige los errores típicos) y la **binomial negativa** (añade un parámetro de dispersión).
+
+```{r}
+mq <- glm(breaks ~ wool + tension, family = quasipoisson, data = warpbreaks)
+mnb <- glm.nb(breaks ~ wool + tension, data = warpbreaks)
+
+rbind(poisson = coef(summary(mp))[, "Std. Error"],
+      quasi = coef(summary(mq))[, "Std. Error"],
+      binom_neg = coef(summary(mnb))[, "Std. Error"])
+AIC(mp, mnb)
+```
+
+### Resumen
+
+- GLM = familia + predictor lineal + enlace; se estima por máxima verosimilitud (IRLS).
+- Logística: $\exp(\beta)$ es el odds ratio; `predict(type = "response")` da probabilidades.
+- Clasificación: matriz de confusión, ROC y AUC, siempre sobre datos de prueba.
+- Poisson: $\exp(\beta)$ es un cociente de tasas; vigilar la sobredispersión ($D/\text{g.l.}\gg 1$).
+- Devianza y AIC permiten comparar modelos; la razón de verosimilitudes contrasta modelos anidados.

@@ -133,6 +133,106 @@ mean((x - mean(x))^3) / sd(x)^3
 
 Un valor cercano a 0 indica simetría; positivo, cola a la derecha; negativo, cola a la izquierda.
 
+### Función de distribución empírica y cuantiles
+
+La **función de distribución empírica** $F_n(x)=\frac{1}{n}\#\{x_i\le x\}$ estima la función de distribución poblacional y es el análogo muestral de $F$ (tema de variables aleatorias).
+
+```{r}
+#| label: fig-ecdf
+#| fig-cap: "Función de distribución empírica del peso por especie."
+Fn <- ecdf(na.omit(peso))
+Fn(4000)                                   # proporción de pingüinos con peso <= 4000 g
+quantile(peso, c(0.1, 0.5, 0.9), na.rm = TRUE)
+
+ggplot(penguins, aes(body_mass_g, color = species)) +
+  stat_ecdf(na.rm = TRUE) +
+  labs(x = "Peso (g)", y = "F_n(x)", color = NULL)
+```
+
+### Estimación de la densidad
+
+El histograma depende del número de intervalos. La **densidad kernel** suaviza la distribución; el parámetro `adjust` modifica el ancho de banda.
+
+```{r}
+#| label: fig-kernel
+#| fig-cap: "Densidad kernel del peso con tres anchos de banda."
+ggplot(penguins, aes(body_mass_g)) +
+  geom_density(aes(color = "adjust = 0,3"), adjust = 0.3, na.rm = TRUE) +
+  geom_density(aes(color = "adjust = 1"), adjust = 1, na.rm = TRUE) +
+  geom_density(aes(color = "adjust = 3"), adjust = 3, na.rm = TRUE) +
+  labs(x = "Peso (g)", y = "Densidad", color = NULL)
+```
+
+### Momentos muestrales y forma
+
+Los **momentos muestrales** son $m_r=\frac1n\sum x_i^r$ y los **centrales** $\frac1n\sum(x_i-\bar x)^r$. De ellos salen la asimetría $g_1=m_3^c/(m_2^c)^{3/2}$ y la curtosis $g_2=m_4^c/(m_2^c)^2$.
+
+```{r}
+momento_central <- function(x, r) { x <- na.omit(x); mean((x - mean(x))^r) }
+asimetria <- function(x) momento_central(x, 3) / momento_central(x, 2)^1.5
+curtosis  <- function(x) momento_central(x, 4) / momento_central(x, 2)^2
+
+penguins |>
+  group_by(species) |>
+  summarise(asimetria = asimetria(body_mass_g), curtosis = curtosis(body_mass_g))
+```
+
+### Medidas robustas
+
+La media y la desviación típica se distorsionan con valores extremos; la mediana, el rango intercuartílico y la **desviación absoluta mediana** (MAD) no.
+
+```{r}
+x <- c(rnorm(50, 100, 10), 1000)           # 50 observaciones normales y un atípico
+rbind(media = mean(x), media_recortada = mean(x, trim = 0.1), mediana = median(x),
+      desv_tipica = sd(x), iqr = IQR(x), mad = mad(x))
+```
+
+### Estandarización
+
+Restar la media y dividir por la desviación típica deja la variable en unidades de desviaciones típicas ($z$-scores), comparables entre variables. En aprendizaje automático es un paso previo habitual.
+
+```{r}
+z <- scale(peso)[, 1]
+c(media = mean(z, na.rm = TRUE), sd = sd(z, na.rm = TRUE))
+sum(abs(z) > 3, na.rm = TRUE)              # valores a más de 3 desviaciones típicas
+```
+
+### Descriptiva bivariante
+
+La **covarianza** y la **correlación de Pearson** miden la relación *lineal*; la de **Spearman** (basada en rangos) mide la relación *monótona* y es robusta a atípicos.
+
+```{r}
+c(pearson = cor(mtcars$hp, mtcars$mpg), spearman = cor(mtcars$hp, mtcars$mpg, method = "spearman"))
+```
+
+Los coeficientes resumen, pero no sustituyen al gráfico. El **cuarteto de Anscombe** son cuatro conjuntos con prácticamente las mismas medias, varianzas y correlación, pero formas completamente distintas:
+
+```{r}
+#| label: fig-anscombe
+#| fig-cap: "Cuarteto de Anscombe: mismos resúmenes, relaciones distintas."
+cuarteto <- anscombe |>
+  pivot_longer(everything(), names_to = c(".value", "grupo"), names_pattern = "(.)(.)")
+
+cuarteto |>
+  group_by(grupo) |>
+  summarise(media_x = mean(x), media_y = mean(y), r = cor(x, y))
+
+ggplot(cuarteto, aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~grupo)
+```
+
+### Tablas de contingencia
+
+Con dos variables cualitativas se resume la asociación con una tabla de doble entrada y sus proporciones **por filas** o **por columnas**:
+
+```{r}
+tabla <- table(penguins$species, penguins$island)
+tabla
+round(prop.table(tabla, margin = 1), 2)    # distribución de islas dentro de cada especie
+```
+
 ### Resumen
 
 - El tipo de variable determina qué resumen y qué gráfico usar.

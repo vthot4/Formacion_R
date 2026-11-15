@@ -1,0 +1,125 @@
+## Laboratorio
+
+### Objetivos
+
+Aplicar y comparar los principales contrastes, estimar la potencia por simulación y controlar las comparaciones múltiples.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(2026)
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: contraste de una media
+
+Un fabricante afirma que el pico de los pingüinos Adelie mide 38 mm de media. Contrasta $H_0:\mu=38$ frente a $H_1:\mu\ne 38$.
+
+```{r}
+adelie <- penguins |> filter(species == "Adelie")
+t.test(adelie$bill_length_mm, mu = 38)
+```
+
+#### Ejercicio 2: comparación de dos grupos
+
+¿Pesan lo mismo machos y hembras Gentoo? Calcula también la d de Cohen.
+
+```{r}
+gentoo <- penguins |> filter(species == "Gentoo", !is.na(sex))
+t.test(body_mass_g ~ sex, data = gentoo)
+
+h <- gentoo$body_mass_g[gentoo$sex == "female"]
+m <- gentoo$body_mass_g[gentoo$sex == "male"]
+sp <- sqrt(((length(h) - 1) * var(h) + (length(m) - 1) * var(m)) / (length(h) + length(m) - 2))
+(mean(m) - mean(h)) / sp
+```
+
+#### Ejercicio 3: potencia por simulación
+
+Estima la potencia de un test t de dos muestras con $n=25$ por grupo cuando la diferencia real es $0{,}6$ desviaciones típicas, y compárala con `power.t.test()`.
+
+```{r}
+rechaza <- replicate(5000, t.test(rnorm(25, 0), rnorm(25, 0.6))$p.value < 0.05)
+mean(rechaza)
+power.t.test(n = 25, delta = 0.6, sd = 1)$power
+```
+
+#### Ejercicio 4: independencia
+
+¿Está el sexo asociado a la especie?
+
+```{r}
+tabla <- table(penguins$species, penguins$sex)
+tabla
+chisq.test(tabla)
+```
+
+#### Ejercicio 5: ANOVA y comparaciones por pares
+
+¿Difiere la longitud de la aleta entre las tres especies?
+
+```{r}
+mod <- aov(flipper_length_mm ~ species, data = penguins)
+summary(mod)
+TukeyHSD(mod)
+```
+
+#### Ejercicio 6: p-valores y comparaciones múltiples
+
+Se contrastan 100 variables sin efecto real. ¿Cuántos falsos positivos se esperan con y sin corrección?
+
+```{r}
+p <- replicate(100, t.test(rnorm(30), rnorm(30))$p.value)
+c(sin_correccion = sum(p < 0.05),
+  bonferroni = sum(p.adjust(p, "bonferroni") < 0.05),
+  BH = sum(p.adjust(p, "BH") < 0.05))
+```
+
+### Ejercicios propuestos
+
+1. Contrasta si la media de `mpg` en `mtcars` es distinta de 20. Calcula a mano el estadístico t y el p-valor y comprueba con `t.test()`.
+2. Compara el consumo (`mpg`) de coches con transmisión automática y manual con un test t de Welch y con Wilcoxon. ¿Coinciden las conclusiones?
+3. Calcula el tamaño muestral por grupo necesario para detectar una diferencia de 0,4 desviaciones típicas con potencia 0,9 al 1 % de significación.
+4. Simula la tasa de error de tipo I del test t de una muestra cuando los datos son exponenciales (no normales) con $n=10$ y con $n=100$. ¿Qué observas?
+5. Con `penguins`, contrasta si la proporción de machos es la misma en Adelie y en Gentoo.
+6. Haz un test de permutaciones para la diferencia de medias de `bill_length_mm` entre Adelie y Chinstrap y compáralo con `t.test()`.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+x <- mtcars$mpg
+t_obs <- (mean(x) - 20) / (sd(x) / sqrt(length(x)))
+c(t = t_obs, p = 2 * pt(-abs(t_obs), length(x) - 1))
+t.test(x, mu = 20)$p.value
+
+# 2
+t.test(mpg ~ am, data = mtcars)$p.value
+wilcox.test(mpg ~ am, data = mtcars, exact = FALSE)$p.value
+
+# 3
+power.t.test(power = 0.9, delta = 0.4, sd = 1, sig.level = 0.01)
+
+# 4: el test t es robusto con n grande
+sapply(c(10, 100), function(n) mean(replicate(5000, t.test(rexp(n), mu = 1)$p.value < 0.05)))
+
+# 5
+d <- penguins |> filter(species %in% c("Adelie", "Gentoo"), !is.na(sex))
+tab <- table(droplevels(d$species), d$sex)   # droplevels elimina el nivel vacío Chinstrap
+prop.test(tab[, "male"], rowSums(tab))
+
+# 6
+d6 <- penguins |> filter(species %in% c("Adelie", "Chinstrap"), !is.na(bill_length_mm))
+y <- d6$bill_length_mm; grupo <- d6$species == "Adelie"
+obs <- mean(y[grupo]) - mean(y[!grupo])
+perm <- replicate(10000, { g <- sample(grupo); mean(y[g]) - mean(y[!g]) })
+mean(abs(perm) >= abs(obs))
+t.test(bill_length_mm ~ species, data = d6)$p.value
+```
+:::

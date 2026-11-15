@@ -1,0 +1,220 @@
+## Teoría
+
+### Objetivos
+
+- Evaluar estimadores mediante sesgo, varianza y error cuadrático medio.
+- Obtener estimadores por el método de los momentos y por máxima verosimilitud.
+- Construir intervalos de confianza para medias, proporciones y varianzas.
+- Aplicar el bootstrap cuando no hay fórmula exacta.
+
+```{r}
+library(tidyverse)
+library(MASS, exclude = "select")
+set.seed(2026)
+```
+
+### Muestra y estimador
+
+Una **muestra aleatoria simple** de tamaño $n$ es un conjunto $X_1,\dots,X_n$ de variables independientes e idénticamente distribuidas según $F_\theta$, con $\theta$ desconocido. Un **estimador** $\hat\theta=T(X_1,\dots,X_n)$ es una función de la muestra; como depende de ella, es una variable aleatoria con su propia distribución, llamada **distribución muestral**.
+
+### Propiedades de un estimador
+
+- **Sesgo:** $\operatorname{sesgo}(\hat\theta)=E[\hat\theta]-\theta$. Es **insesgado** si vale 0.
+- **Varianza:** $V[\hat\theta]$ mide la dispersión entre muestras.
+- **Error cuadrático medio:** $\operatorname{ECM}(\hat\theta)=E[(\hat\theta-\theta)^2]=V[\hat\theta]+\operatorname{sesgo}^2$.
+- **Consistencia:** $\hat\theta_n\to\theta$ en probabilidad cuando $n\to\infty$.
+
+El ECM expresa el compromiso **sesgo-varianza**: a veces un estimador algo sesgado tiene menos error total que uno insesgado.
+
+#### Estimar la varianza: divisor $n$ o $n-1$
+
+$S^2=\frac{1}{n-1}\sum(X_i-\bar X)^2$ es insesgada para $\sigma^2$, mientras que $\hat\sigma^2=\frac1n\sum(X_i-\bar X)^2$ tiene sesgo $-\sigma^2/n$ pero menor ECM en el caso normal.
+
+```{r}
+simular_varianzas <- function(n, sigma2 = 4, nsim = 20000) {
+  est <- replicate(nsim, {
+    x <- rnorm(n, 0, sqrt(sigma2))
+    c(s2 = var(x), mv = mean((x - mean(x))^2))
+  })
+  tibble(estimador = c("divisor n-1", "divisor n"),
+         media = rowMeans(est),
+         sesgo = rowMeans(est) - sigma2,
+         varianza = apply(est, 1, var),
+         ecm = rowMeans((est - sigma2)^2))
+}
+simular_varianzas(n = 10)
+```
+
+#### Estimar el máximo de una uniforme
+
+Sea $X_i\sim U(0,\theta)$. Tres estimadores de $\theta$: el máximo muestral, el doble de la media y el máximo corregido $\frac{n+1}{n}X_{(n)}$.
+
+```{r}
+theta <- 10; n <- 20
+est <- replicate(20000, {
+  x <- runif(n, 0, theta)
+  c(maximo = max(x), doble_media = 2 * mean(x), maximo_corregido = (n + 1) / n * max(x))
+})
+tibble(estimador = rownames(est),
+       sesgo = rowMeans(est) - theta,
+       varianza = apply(est, 1, var),
+       ecm = rowMeans((est - theta)^2))
+```
+
+El máximo corregido es insesgado y tiene el menor ECM de los tres.
+
+### Método de los momentos
+
+Se igualan los primeros momentos poblacionales a los muestrales y se resuelve para $\theta$. Para una $\text{Gamma}(\alpha,\beta)$, $E[X]=\alpha/\beta$ y $V[X]=\alpha/\beta^2$, luego
+
+$$\hat\alpha=\frac{\bar x^2}{s^2},\qquad \hat\beta=\frac{\bar x}{s^2}.$$
+
+```{r}
+x <- rgamma(500, shape = 3, rate = 2)
+c(alfa = mean(x)^2 / var(x), beta = mean(x) / var(x))
+```
+
+### Máxima verosimilitud
+
+La **función de verosimilitud** es $L(\theta)=\prod_i f(x_i;\theta)$ y el **estimador de máxima verosimilitud** (EMV) maximiza $L$, o equivalentemente $\ell(\theta)=\ln L(\theta)$.
+
+Algunos EMV con solución cerrada:
+
+| Modelo | EMV |
+|--------|-----|
+| Bernoulli$(p)$ | $\hat p=\bar x$ |
+| Poisson$(\lambda)$ | $\hat\lambda=\bar x$ |
+| Exponencial$(\lambda)$ | $\hat\lambda=1/\bar x$ |
+| Normal$(\mu,\sigma^2)$ | $\hat\mu=\bar x$, $\hat\sigma^2=\frac1n\sum(x_i-\bar x)^2$ |
+
+```{r}
+#| label: fig-logver
+#| fig-cap: "Log-verosimilitud de una muestra de Poisson; el máximo está en la media muestral."
+x <- rpois(30, lambda = 3.5)
+loglik <- function(lambda) sum(dpois(x, lambda, log = TRUE))
+
+ggplot(tibble(lambda = seq(2, 5.5, length.out = 200)), aes(lambda)) +
+  stat_function(fun = Vectorize(loglik)) +
+  geom_vline(xintercept = mean(x), linetype = "dashed", color = "red") +
+  labs(x = expression(lambda), y = "Log-verosimilitud")
+```
+
+#### Maximización numérica
+
+Cuando no hay fórmula cerrada se usa un optimizador. `optim()` minimiza, así que se pasa $-\ell$; con `hessian = TRUE` se obtiene la curvatura en el óptimo.
+
+```{r}
+x <- rgamma(300, shape = 3, rate = 2)
+menos_loglik <- function(par) -sum(dgamma(x, shape = par[1], rate = par[2], log = TRUE))
+ajuste <- optim(c(1, 1), menos_loglik, method = "L-BFGS-B", lower = c(0.01, 0.01), hessian = TRUE)
+ajuste$par
+fitdistr(x, "gamma")        # MASS: mismo resultado con errores típicos
+```
+
+#### Propiedades asintóticas
+
+Bajo condiciones de regularidad, el EMV es consistente, asintóticamente insesgado, eficiente y
+
+$$\hat\theta\ \approx\ N\!\big(\theta,\ I_n(\theta)^{-1}\big),\qquad I_n(\theta)=-E\big[\ell''(\theta)\big]=n\,I_1(\theta),$$
+
+donde $I_n$ es la **información de Fisher**. En la práctica, la inversa del hessiano de $-\ell$ estima la varianza.
+
+```{r}
+sqrt(diag(solve(ajuste$hessian)))     # errores típicos desde el hessiano
+```
+
+Para la exponencial, $I_n(\lambda)=n/\lambda^2$, luego $\operatorname{se}(\hat\lambda)\approx\lambda/\sqrt{n}$. Lo comprobamos:
+
+```{r}
+#| label: fig-emv-asint
+#| fig-cap: "Distribución muestral del EMV de una exponencial (n = 50) y normal asintótica."
+lambda <- 2; n <- 50
+emv <- replicate(10000, 1 / mean(rexp(n, lambda)))
+c(sd_simulada = sd(emv), sd_asintotica = lambda / sqrt(n))
+
+ggplot(tibble(emv), aes(emv)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = dnorm, args = list(mean = lambda, sd = lambda / sqrt(n)), color = "red")
+```
+
+### Intervalos de confianza
+
+Un intervalo de confianza al nivel $1-\alpha$ es un intervalo aleatorio $[L,U]$ tal que $P(L\le\theta\le U)=1-\alpha$. **La probabilidad se refiere al procedimiento**, no a un intervalo ya calculado.
+
+#### Media de una normal
+
+$$\bar x\ \pm\ t_{n-1,\,1-\alpha/2}\,\frac{s}{\sqrt n}.$$
+
+#### Varianza de una normal
+
+$$\left[\frac{(n-1)s^2}{\chi^2_{n-1,\,1-\alpha/2}},\ \frac{(n-1)s^2}{\chi^2_{n-1,\,\alpha/2}}\right].$$
+
+```{r}
+library(palmerpenguins)
+peso <- na.omit(penguins$body_mass_g)
+n <- length(peso); s2 <- var(peso)
+
+t.test(peso)$conf.int
+c((n - 1) * s2 / qchisq(0.975, n - 1), (n - 1) * s2 / qchisq(0.025, n - 1))
+```
+
+#### Proporción
+
+El intervalo de **Wald**, $\hat p\pm z\sqrt{\hat p(1-\hat p)/n}$, funciona mal con $n$ pequeño o $p$ extremo. Alternativas: **Wilson** (`prop.test(..., correct = FALSE)`) y **Clopper-Pearson** exacto (`binom.test`).
+
+```{r}
+cobertura <- function(p, n, nsim = 5000) {
+  x <- rbinom(nsim, n, p); ph <- x / n
+  wald <- cbind(ph - 1.96 * sqrt(ph * (1 - ph) / n), ph + 1.96 * sqrt(ph * (1 - ph) / n))
+  wilson <- t(sapply(x, function(xx) prop.test(xx, n, correct = FALSE)$conf.int))
+  c(wald = mean(wald[, 1] <= p & p <= wald[, 2]),
+    wilson = mean(wilson[, 1] <= p & p <= wilson[, 2]))
+}
+round(rbind(`p=0.1, n=30` = cobertura(0.1, 30), `p=0.5, n=30` = cobertura(0.5, 30)), 3)
+```
+
+El intervalo de Wald queda por debajo del 95 % nominal, sobre todo con $p$ pequeño.
+
+### Interpretación: cobertura por simulación
+
+```{r}
+#| label: fig-cobertura
+#| fig-cap: "Cien intervalos de confianza al 95 % para una media de 50; en rojo, los que no la contienen."
+ic <- map_dfr(1:100, function(i) {
+  m <- rnorm(30, 50, 10)
+  ci <- t.test(m)$conf.int
+  tibble(i = i, inf = ci[1], sup = ci[2], contiene = ci[1] <= 50 & 50 <= ci[2])
+})
+mean(ic$contiene)
+ggplot(ic, aes(y = i, xmin = inf, xmax = sup, color = contiene)) +
+  geom_linerange() +
+  geom_vline(xintercept = 50, linetype = "dashed") +
+  scale_color_manual(values = c(`TRUE` = "grey40", `FALSE` = "red")) +
+  labs(x = "Intervalo", y = "Muestra", color = "Contiene μ")
+```
+
+### Bootstrap
+
+Cuando no se conoce la distribución muestral de un estimador, se **remuestrea con reemplazo** la propia muestra $B$ veces, se recalcula el estimador en cada remuestra y se usa la distribución resultante. El **intervalo percentil** toma los cuantiles $\alpha/2$ y $1-\alpha/2$ de esas réplicas.
+
+```{r}
+#| label: fig-bootstrap
+#| fig-cap: "Distribución bootstrap de la mediana del consumo (mtcars)."
+x <- mtcars$mpg
+boot_mediana <- replicate(10000, median(sample(x, replace = TRUE)))
+
+c(mediana = median(x), error_tipico_boot = sd(boot_mediana))
+quantile(boot_mediana, c(0.025, 0.975))
+
+ggplot(tibble(boot_mediana), aes(boot_mediana)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white")
+```
+
+### Resumen
+
+- ECM = varianza + sesgo²; el estimador insesgado no siempre es el mejor.
+- Momentos: sencillo; máxima verosimilitud: eficiente y con distribución asintótica normal.
+- `optim()` y `MASS::fitdistr()` ajustan modelos sin fórmula cerrada; el hessiano da errores típicos.
+- El nivel de confianza describe el procedimiento; Wald para proporciones es poco fiable con muestras pequeñas.
+- El bootstrap aproxima la distribución muestral sin supuestos paramétricos.

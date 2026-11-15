@@ -1,0 +1,5 @@
+# Variables aleatorias
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

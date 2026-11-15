@@ -11,3 +11,6 @@ _book/
 /.quarto/
 **/*.quarto_ipynb
 _freeze/
+
+# Material de referencia (no se publica)
+referencias/

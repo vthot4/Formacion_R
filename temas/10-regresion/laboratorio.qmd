@@ -1,0 +1,139 @@
+## Laboratorio
+
+### Objetivos
+
+Ajustar, interpretar y diagnosticar modelos de regresión lineal, y compararlos por validación cruzada.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(2026)
+pingu <- penguins |> drop_na()
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: mínimos cuadrados a mano
+
+Calcula $\hat{\boldsymbol\beta}$ para `body_mass_g ~ flipper_length_mm` con la fórmula matricial y compáralo con `lm()`.
+
+```{r}
+X <- cbind(1, pingu$flipper_length_mm)
+y <- pingu$body_mass_g
+beta <- solve(crossprod(X), crossprod(X, y))
+drop(beta)
+coef(lm(body_mass_g ~ flipper_length_mm, data = pingu))
+```
+
+#### Ejercicio 2: modelo múltiple e interpretación
+
+```{r}
+m <- lm(body_mass_g ~ flipper_length_mm + species + sex, data = pingu)
+summary(m)
+confint(m)
+```
+
+Interpreta, por ejemplo, el coeficiente de `sexmale`: la diferencia media de peso entre machos y hembras de la misma especie y con la misma longitud de aleta.
+
+#### Ejercicio 3: intervalos de confianza y de predicción
+
+Para un macho Gentoo con aleta de 215 mm:
+
+```{r}
+nuevo <- tibble(flipper_length_mm = 215, species = "Gentoo", sex = "male")
+predict(m, nuevo, interval = "confidence")
+predict(m, nuevo, interval = "prediction")
+```
+
+El intervalo de predicción es bastante más ancho, porque describe a un individuo concreto y no al peso medio.
+
+#### Ejercicio 4: diagnóstico
+
+```{r}
+#| label: fig-lab-diag
+#| fig-cap: "Residuos estandarizados frente a valores ajustados."
+tibble(ajustado = fitted(m), estandarizado = rstandard(m)) |>
+  ggplot(aes(ajustado, estandarizado)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = c(-2, 0, 2), linetype = c("dashed", "solid", "dashed"))
+
+sum(abs(rstandard(m)) > 2)                         # residuos grandes
+head(sort(cooks.distance(m), decreasing = TRUE), 3)
+```
+
+#### Ejercicio 5: comparación por validación cruzada
+
+```{r}
+cv_rmse <- function(formula, datos, k = 10) {
+  respuesta <- all.vars(formula)[1]
+  bloque <- sample(rep(1:k, length.out = nrow(datos)))
+  mean(sapply(1:k, function(i) {
+    ajuste <- lm(formula, data = datos[bloque != i, ])
+    pred <- predict(ajuste, datos[bloque == i, ])
+    sqrt(mean((datos[[respuesta]][bloque == i] - pred)^2))
+  }))
+}
+
+c(m1 = cv_rmse(body_mass_g ~ flipper_length_mm, pingu),
+  m2 = cv_rmse(body_mass_g ~ flipper_length_mm + species, pingu),
+  m3 = cv_rmse(body_mass_g ~ flipper_length_mm + species + sex, pingu))
+```
+
+### Ejercicios propuestos
+
+1. Con `mtcars`, calcula a mano (fórmula matricial) los coeficientes de `mpg ~ wt + hp` y compara con `lm()`. Calcula también $\hat\sigma^2$ y los errores típicos.
+2. Ajusta `mpg ~ wt + qsec + am` (con `am` como factor). Interpreta cada coeficiente y contrasta con `anova()` si añadir `am` a `mpg ~ wt + qsec` mejora el modelo.
+3. Calcula los VIF de `mpg ~ wt + hp + disp + drat + qsec` y propón qué variable eliminarías.
+4. Con `penguins`, ajusta `bill_depth_mm ~ bill_length_mm` y `bill_depth_mm ~ bill_length_mm + species`. Explica el cambio de signo de la pendiente.
+5. Compara por AIC y BIC `mpg ~ wt`, `mpg ~ wt + hp`, `mpg ~ wt + hp + qsec` y `mpg ~ poly(wt, 2) + hp`. ¿Coinciden ambos criterios?
+6. Divide `pingu` en entrenamiento (70 %) y prueba (30 %), ajusta un modelo con todas las variables numéricas y especie, y calcula el RMSE en ambos conjuntos. ¿Hay indicios de sobreajuste?
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+X <- cbind(1, mtcars$wt, mtcars$hp); y <- mtcars$mpg
+beta <- solve(crossprod(X), crossprod(X, y))
+e <- y - X %*% beta
+s2 <- sum(e^2) / (nrow(X) - ncol(X))
+cbind(beta, se = sqrt(diag(s2 * solve(crossprod(X)))))
+coef(summary(lm(mpg ~ wt + hp, data = mtcars)))[, 1:2]
+
+# 2
+coches <- mtcars |> mutate(am = factor(am, labels = c("automático", "manual")))
+a <- lm(mpg ~ wt + qsec, data = coches)
+b <- lm(mpg ~ wt + qsec + am, data = coches)
+summary(b)
+anova(a, b)
+
+# 3
+vif_manual <- function(modelo) {
+  X <- model.matrix(modelo)[, -1, drop = FALSE]
+  sapply(seq_len(ncol(X)), function(j) 1 / (1 - summary(lm(X[, j] ~ X[, -j]))$r.squared)) |>
+    setNames(colnames(X))
+}
+vif_manual(lm(mpg ~ wt + hp + disp + drat + qsec, data = mtcars))
+
+# 4
+coef(lm(bill_depth_mm ~ bill_length_mm, data = pingu))
+coef(lm(bill_depth_mm ~ bill_length_mm + species, data = pingu))
+
+# 5
+mods <- list(lm(mpg ~ wt, mtcars), lm(mpg ~ wt + hp, mtcars),
+             lm(mpg ~ wt + hp + qsec, mtcars), lm(mpg ~ poly(wt, 2) + hp, mtcars))
+tibble(modelo = 1:4, AIC = map_dbl(mods, AIC), BIC = map_dbl(mods, BIC))
+
+# 6
+idx <- sample(nrow(pingu), round(0.7 * nrow(pingu)))
+train <- pingu[idx, ]; test <- pingu[-idx, ]
+mod <- lm(body_mass_g ~ bill_length_mm + bill_depth_mm + flipper_length_mm + species, data = train)
+rmse <- function(real, pred) sqrt(mean((real - pred)^2))
+c(entrenamiento = rmse(train$body_mass_g, predict(mod, train)),
+  prueba = rmse(test$body_mass_g, predict(mod, test)))
+```
+:::

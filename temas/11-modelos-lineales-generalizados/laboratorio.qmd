@@ -1,0 +1,149 @@
+## Laboratorio
+
+### Objetivos
+
+Ajustar e interpretar regresiones logística y de Poisson, evaluar un clasificador con datos de prueba y diagnosticar la sobredispersión.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+library(MASS, exclude = "select")
+set.seed(2026)
+
+pingu <- penguins |>
+  drop_na() |>
+  mutate(macho = as.numeric(sex == "male"))
+
+auc <- function(y, score) {
+  r <- rank(score); n1 <- sum(y == 1); n0 <- sum(y == 0)
+  (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: regresión logística
+
+Modela la probabilidad de ser macho con la longitud de la aleta (cada 10 mm) y la especie.
+
+```{r}
+pingu <- pingu |> mutate(aleta10 = flipper_length_mm / 10)
+m <- glm(macho ~ aleta10 + species, family = binomial, data = pingu)
+round(summary(m)$coefficients, 3)
+exp(coef(m))
+```
+
+Interpreta $\exp(\hat\beta_{\text{aleta10}})$: factor por el que se multiplican los odds de ser macho por cada 10 mm más de aleta, a igualdad de especie.
+
+#### Ejercicio 2: probabilidades predichas
+
+```{r}
+nuevos <- tibble(aleta10 = c(19, 19, 21), species = factor(c("Adelie", "Adelie", "Gentoo"),
+                                                         levels = levels(pingu$species)))
+nuevos$prob <- predict(m, nuevos, type = "response")
+nuevos
+```
+
+#### Ejercicio 3: efecto del punto de corte
+
+```{r}
+prob <- predict(m, type = "response")
+resumen_corte <- function(corte) {
+  pred <- prob >= corte
+  c(corte = corte,
+    sensibilidad = mean(pred[pingu$macho == 1]),
+    especificidad = mean(!pred[pingu$macho == 0]))
+}
+round(t(sapply(c(0.3, 0.5, 0.7), resumen_corte)), 3)
+```
+
+#### Ejercicio 4: AUC en entrenamiento y prueba
+
+```{r}
+idx <- sample(nrow(pingu), round(0.7 * nrow(pingu)))
+ent <- pingu[idx, ]; pru <- pingu[-idx, ]
+m_ent <- glm(macho ~ aleta10 + species, family = binomial, data = ent)
+c(entrenamiento = auc(ent$macho, predict(m_ent, type = "response")),
+  prueba = auc(pru$macho, predict(m_ent, pru, type = "response")))
+```
+
+#### Ejercicio 5: regresión de Poisson y sobredispersión
+
+Número de insectos capturados con distintos insecticidas (`InsectSprays`).
+
+```{r}
+mp <- glm(count ~ spray, family = poisson, data = InsectSprays)
+c(cociente_devianza_gl = deviance(mp) / df.residual(mp))
+round(exp(coef(mp)), 2)
+```
+
+Un cociente próximo a 1 indicaría que no hay sobredispersión; aquí vale aproximadamente 1,5, así que hay **sobredispersión moderada** y los errores típicos de la Poisson quedan algo subestimados. Compara con el ajuste quasi-Poisson:
+
+```{r}
+mq <- glm(count ~ spray, family = quasipoisson, data = InsectSprays)
+c(parametro_dispersion = summary(mq)$dispersion)
+rbind(poisson = coef(summary(mp))[, "Std. Error"],
+      quasi = coef(summary(mq))[, "Std. Error"])[, 1:3]
+```
+
+### Ejercicios propuestos
+
+1. Con `mtcars`, ajusta `am ~ wt` con regresión logística. Interpreta el odds ratio de `wt` y calcula la probabilidad de transmisión manual para un coche de 3000 libras (`wt = 3`).
+2. Contrasta con la razón de verosimilitudes si `wt` mejora el modelo nulo `am ~ 1`. Calcula el pseudo-$R^2$ de McFadden.
+3. Calcula la matriz de confusión del modelo del ejercicio 1 con corte 0,5, su exactitud, sensibilidad y especificidad, y el AUC.
+4. Simula datos logísticos con $\beta_0=-1$, $\beta_1=2$ y $x\sim N(0,1)$. Estima los coeficientes con $n=50,\,200,\,2000$ y comprueba que se acercan a los verdaderos.
+5. Ajusta `warpbreaks` con `breaks ~ wool * tension` (con interacción). ¿Mejora el modelo `breaks ~ wool + tension` según el AIC y según un contraste de razón de verosimilitudes?
+6. Implementa el algoritmo IRLS (Newton-Raphson) para la regresión de Poisson y compara con `glm()` en `warpbreaks`. El gradiente es $X^\top(\mathbf{y}-\boldsymbol\mu)$ y la matriz $X^\top\operatorname{diag}(\boldsymbol\mu)X$.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+m1 <- glm(am ~ wt, family = binomial, data = mtcars)
+exp(coef(m1))                                  # OR por cada 1000 libras
+predict(m1, data.frame(wt = 3), type = "response")
+
+# 2
+m0 <- glm(am ~ 1, family = binomial, data = mtcars)
+anova(m0, m1, test = "Chisq")
+1 - as.numeric(logLik(m1) / logLik(m0))
+
+# 3
+p <- predict(m1, type = "response")
+conf <- table(real = mtcars$am, predicho = as.numeric(p >= 0.5))
+conf
+c(exactitud = sum(diag(conf)) / sum(conf),
+  sensibilidad = conf["1", "1"] / sum(conf["1", ]),
+  especificidad = conf["0", "0"] / sum(conf["0", ]),
+  AUC = auc(mtcars$am, p))
+
+# 4
+sapply(c(50, 200, 2000), function(n) {
+  x <- rnorm(n); y <- rbinom(n, 1, plogis(-1 + 2 * x))
+  coef(glm(y ~ x, family = binomial))
+})
+
+# 5
+a <- glm(breaks ~ wool + tension, family = poisson, data = warpbreaks)
+b <- glm(breaks ~ wool * tension, family = poisson, data = warpbreaks)
+AIC(a, b)
+anova(a, b, test = "Chisq")
+
+# 6
+X <- model.matrix(~ wool + tension, data = warpbreaks)
+y <- warpbreaks$breaks
+beta <- c(log(mean(y)), rep(0, ncol(X) - 1))
+for (i in 1:50) {
+  mu <- exp(X %*% beta)
+  paso <- solve(t(X) %*% (as.numeric(mu) * X), t(X) %*% (y - mu))
+  beta <- beta + paso
+  if (max(abs(paso)) < 1e-10) break
+}
+cbind(IRLS = drop(beta), glm = coef(glm(breaks ~ wool + tension, family = poisson, data = warpbreaks)))
+```
+:::

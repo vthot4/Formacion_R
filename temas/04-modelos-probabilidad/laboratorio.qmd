@@ -1,0 +1,118 @@
+## Laboratorio
+
+### Objetivos
+
+Calcular probabilidades y cuantiles con los modelos principales y contrastar resultados teóricos con simulación.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: control de calidad
+
+En un lote, el 4 % de las piezas es defectuosa. Se inspeccionan 50 piezas elegidas con reposición. Calcula $P(X=0)$, $P(X\le 3)$ y el número esperado de defectuosas.
+
+```{r}
+dbinom(0, 50, 0.04)
+pbinom(3, 50, 0.04)
+50 * 0.04
+```
+
+#### Ejercicio 2: aproximación de Poisson
+
+Compara las probabilidades exactas con la aproximación de Poisson.
+
+```{r}
+k <- 0:6
+tibble(k, binomial = dbinom(k, 50, 0.04), poisson = dpois(k, 50 * 0.04)) |>
+  mutate(error = abs(binomial - poisson))
+```
+
+#### Ejercicio 3: muestreo sin reposición
+
+Una caja tiene 30 chips, de los que 6 son defectuosos. Se prueban 8 sin reponer. Compara la hipergeométrica con la binomial.
+
+```{r}
+dhyper(0:3, m = 6, n = 24, k = 8)
+dbinom(0:3, size = 8, prob = 6/30)
+```
+
+#### Ejercicio 4: llegadas y esperas
+
+Los correos llegan según un proceso de Poisson con tasa 3 por hora. ¿Cuál es la probabilidad de no recibir ninguno en 30 minutos? ¿Y de que el tiempo hasta el primero supere 30 minutos? ¿Y 20 minutos?
+
+```{r}
+dpois(0, lambda = 3 * 0.5)                 # ningún correo en 30 minutos
+pexp(0.5, rate = 3, lower.tail = FALSE)    # el primero tarda más de 30 minutos
+pexp(20 / 60, rate = 3, lower.tail = FALSE)
+```
+
+Las dos primeras coinciden: no recibir ningún correo en un periodo equivale a que el tiempo hasta el primero supere ese periodo. La tercera es otra probabilidad, porque cambia el periodo.
+
+#### Ejercicio 5: suma de exponenciales
+
+Comprueba que la suma de 3 exponenciales independientes de tasa 2 sigue una Gamma$(3,2)$.
+
+```{r}
+#| label: fig-lab-gamma
+#| fig-cap: "Suma de tres exponenciales frente a la densidad Gamma(3, 2)."
+suma <- replicate(1e5, sum(rexp(3, rate = 2)))
+c(media = mean(suma), teorica = 3 / 2, varianza = var(suma), v_teorica = 3 / 4)
+
+ggplot(tibble(suma), aes(suma)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 60,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = dgamma, args = list(shape = 3, rate = 2), color = "red")
+```
+
+### Ejercicios propuestos
+
+1. Una moneda equilibrada se lanza hasta obtener la primera cara. Calcula con `dgeom()` la probabilidad de necesitar más de 4 lanzamientos y la esperanza del número de lanzamientos.
+2. Si $X\sim\text{Bin}(200,\,0{,}02)$, calcula $P(X\ge 6)$ de forma exacta y con la aproximación de Poisson.
+3. Las notas de un examen siguen una $N(6{,}2;\,1{,}8)$. Calcula el porcentaje de suspensos, la nota que deja por encima al 15 % de los alumnos y la probabilidad de que la nota esté entre 5 y 8.
+4. Comprueba por simulación que si $Z\sim N(0,1)$ y $W\sim\chi^2_5$ son independientes, $Z/\sqrt{W/5}$ tiene la misma distribución que una $t_5$ (compara cuantiles).
+5. Verifica numéricamente la pérdida de memoria de una $\text{Exp}(1/4)$: calcula $P(X>9\mid X>5)$ y $P(X>4)$.
+6. Dibuja en un mismo gráfico las densidades de $\text{Beta}(2,2)$, $\text{Beta}(2,5)$ y $\text{Beta}(0{,}5;0{,}5)$ y describe cómo cambia su forma.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1: en R, X = fracasos antes de la primera cara; "más de 4 lanzamientos" = X >= 4
+pgeom(3, 0.5, lower.tail = FALSE)
+(1 - 0.5) / 0.5 + 1        # esperanza del número de lanzamientos = 2
+
+# 2
+1 - pbinom(5, 200, 0.02)
+1 - ppois(5, 200 * 0.02)
+
+# 3
+pnorm(5, 6.2, 1.8)
+qnorm(0.85, 6.2, 1.8)
+pnorm(8, 6.2, 1.8) - pnorm(5, 6.2, 1.8)
+
+# 4
+z <- rnorm(1e5); w <- rchisq(1e5, 5)
+q <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+rbind(simulada = quantile(z / sqrt(w / 5), q), teorica = qt(q, 5))
+
+# 5
+pexp(9, 1/4, lower.tail = FALSE) / pexp(5, 1/4, lower.tail = FALSE)
+pexp(4, 1/4, lower.tail = FALSE)
+
+# 6
+ggplot(tibble(x = c(0.001, 0.999)), aes(x)) +
+  stat_function(fun = dbeta, args = list(shape1 = 2, shape2 = 2), aes(color = "Beta(2,2)")) +
+  stat_function(fun = dbeta, args = list(shape1 = 2, shape2 = 5), aes(color = "Beta(2,5)")) +
+  stat_function(fun = dbeta, args = list(shape1 = 0.5, shape2 = 0.5), aes(color = "Beta(0.5,0.5)")) +
+  coord_cartesian(ylim = c(0, 4)) +
+  labs(color = NULL, y = "Densidad")
+```
+:::

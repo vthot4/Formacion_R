@@ -109,6 +109,75 @@ ggplot(mtcars, aes(x = mpg)) +
   labs(x = "Millas por galón", y = "Frecuencia")
 ```
 
+### Funciones propias
+
+Una función encapsula un cálculo reutilizable; el valor de la última expresión es el resultado.
+
+```{r}
+resumen_basico <- function(x, na.rm = TRUE) {
+  c(n = sum(!is.na(x)), media = mean(x, na.rm = na.rm), desv_tipica = sd(x, na.rm = na.rm))
+}
+resumen_basico(mtcars$mpg)
+sapply(mtcars[, c("mpg", "hp", "wt")], resumen_basico)
+```
+
+### Control de flujo y vectorización
+
+```{r}
+x <- c(3, -1, 4, -1, 5)
+if (any(x < 0)) "hay negativos" else "todos positivos"
+ifelse(x < 0, 0, x)                       # versión vectorizada
+for (i in seq_along(x)) if (x[i] < 0) cat("posición", i, "negativa\n")
+```
+
+En R conviene **vectorizar**: operar sobre vectores completos en lugar de elemento a elemento. Es más legible y mucho más rápido.
+
+```{r}
+v <- runif(1e6)
+t_bucle <- system.time({ s <- 0; for (i in seq_along(v)) s <- s + v[i]^2 })["elapsed"]
+t_vec   <- system.time(sum(v^2))["elapsed"]
+c(bucle = t_bucle, vectorizado = t_vec)
+```
+
+### Listas y programación funcional
+
+Una **lista** agrupa objetos de tipos distintos. `sapply()` y `purrr::map_*()` aplican una función a cada elemento.
+
+```{r}
+resultado <- list(media = 3.2, grupos = c("A", "B"), tabla = head(mtcars, 2))
+resultado$grupos
+resultado[["media"]]
+map_dbl(mtcars[, 1:4], mean)
+```
+
+```{r}
+mtcars |> summarise(across(c(mpg, hp, wt), list(media = mean, sd = sd)))
+```
+
+### Matrices y álgebra lineal
+
+Las matrices son la base de los modelos estadísticos: `%*%` multiplica, `t()` traspone, `solve()` invierte o resuelve sistemas y `eigen()` calcula autovalores.
+
+```{r}
+A <- matrix(c(2, 1, 1, 3), nrow = 2)
+b <- c(1, 2)
+
+A %*% A
+det(A)
+solve(A, b)          # solución de A x = b
+solve(A) %*% A       # identidad
+eigen(A)
+```
+
+### Aleatoriedad reproducible
+
+Los generadores de números aleatorios son deterministas a partir de una **semilla**: fijarla con `set.seed()` hace los resultados reproducibles.
+
+```{r}
+set.seed(42); runif(3)
+set.seed(42); runif(3)
+```
+
 ### Resumen
 
 - Los objetos se crean con `<-`.

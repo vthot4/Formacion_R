@@ -1,0 +1,5 @@
+# Operaciones con variables aleatorias y teoremas límite
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

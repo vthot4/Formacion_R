@@ -1,0 +1,199 @@
+## Teoría
+
+### Objetivos
+
+- Obtener la distribución de $Y=g(X)$ en el caso discreto y en el continuo.
+- Aplicar el método de la función de distribución y el del cambio de variable.
+- Simular variables aleatorias por inversión, por aceptación-rechazo y con transformaciones específicas.
+- Validar un generador comparando la muestra con la distribución teórica.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+```
+
+### Transformaciones de variables discretas
+
+Si $X$ es discreta y $Y=g(X)$, la función de probabilidad de $Y$ se obtiene **sumando** las probabilidades de todos los valores de $X$ que dan el mismo $y$:
+
+$$p_Y(y) = \sum_{x:\,g(x)=y} p_X(x).$$
+
+```{r}
+x <- -2:2
+p <- c(0.10, 0.20, 0.30, 0.25, 0.15)
+
+tibble(x, p) |>
+  mutate(y = x^2) |>
+  group_by(y) |>
+  summarise(p_y = sum(p))
+```
+
+Aquí $g(x)=x^2$ no es inyectiva, por eso $y=1$ y $y=4$ acumulan dos valores de $X$.
+
+### Transformaciones de variables continuas
+
+#### Método de la función de distribución
+
+Se calcula $F_Y(y)=P(g(X)\le y)$ despejando en términos de $X$ y luego se deriva para hallar $f_Y$. Ejemplo: si $X\sim N(0,1)$ e $Y=X^2$,
+
+$$F_Y(y) = P(-\sqrt{y}\le X\le\sqrt{y}) = 2\Phi(\sqrt{y})-1,$$
+
+que es la función de distribución de una $\chi^2_1$.
+
+```{r}
+y0 <- 1.5
+2 * pnorm(sqrt(y0)) - 1
+pchisq(y0, df = 1)
+mean(rnorm(1e5)^2 <= y0)    # simulación
+```
+
+#### Método del cambio de variable
+
+Si $g$ es estrictamente monótona y derivable, con inversa $h=g^{-1}$,
+
+$$f_Y(y) = f_X\big(h(y)\big)\,\left|h'(y)\right|.$$
+
+Con $X\sim N(0,1)$ e $Y=e^X$ se tiene $h(y)=\ln y$ y $f_Y(y)=\dfrac{1}{y}\,\phi(\ln y)$, la densidad lognormal.
+
+```{r}
+#| label: fig-lognormal
+#| fig-cap: "Si X es N(0,1), Y = exp(X) sigue una lognormal."
+y <- exp(rnorm(1e5))
+densidad_y <- function(y) dnorm(log(y)) / y
+
+ggplot(tibble(y), aes(y)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 100,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = densidad_y, color = "red") +
+  coord_cartesian(xlim = c(0, 8))
+```
+
+Para una transformación lineal $Y=aX+b$ con $a\neq 0$: $f_Y(y)=\frac{1}{|a|}f_X\!\left(\frac{y-b}{a}\right)$.
+
+#### Transformada integral de probabilidad
+
+Si $X$ tiene función de distribución $F$ continua, entonces $U=F(X)\sim U(0,1)$. Es la base de la simulación por inversión.
+
+```{r}
+#| label: fig-pit
+#| fig-cap: "F(X) es uniforme: transformada integral de probabilidad de una normal."
+u <- pnorm(rnorm(1e5, mean = 3, sd = 2), mean = 3, sd = 2)
+ks.test(u, "punif")$p.value
+ggplot(tibble(u), aes(u)) + geom_histogram(bins = 20, fill = "steelblue", color = "white")
+```
+
+### Simulación por inversión
+
+Si $U\sim U(0,1)$ y $F$ es una función de distribución, la variable
+
+$$X = F^{-1}(U) = \inf\{x : F(x)\ge U\}$$
+
+tiene función de distribución $F$. Basta saber generar uniformes (`runif`) e invertir $F$.
+
+#### Caso continuo
+
+Para la exponencial, $F(x)=1-e^{-\lambda x}$, luego $F^{-1}(u)=-\ln(1-u)/\lambda$:
+
+```{r}
+lambda <- 2
+x_exp <- -log(1 - runif(1e5)) / lambda
+c(media = mean(x_exp), teorica = 1 / lambda)
+ks.test(x_exp, "pexp", rate = lambda)$p.value
+```
+
+Para la **Rayleigh** de parámetro $\alpha$, con $F(x)=1-e^{-x^2/(2\alpha^2)}$ en $x>0$:
+
+$$F^{-1}(u)=\alpha\sqrt{-2\ln(1-u)}.$$
+
+```{r}
+alfa <- 1.5
+x_ray <- alfa * sqrt(-2 * log(1 - runif(1e5)))
+Fray <- function(x) 1 - exp(-x^2 / (2 * alfa^2))
+ks.test(x_ray, Fray)$p.value
+```
+
+#### Caso discreto
+
+Se divide $(0,1)$ en intervalos de longitud $p(x_i)$ y se devuelve el $x_i$ en cuyo intervalo cae $U$.
+
+```{r}
+valores <- c(1, 2, 3)
+prob <- c(0.1, 0.3, 0.6)
+u <- runif(1e5)
+x_disc <- valores[findInterval(u, c(0, cumsum(prob)))]
+round(rbind(simulada = prop.table(table(x_disc)), teorica = prob), 3)
+```
+
+### Simulación por aceptación-rechazo
+
+Cuando $F^{-1}$ no es explícita se puede simular a partir de otra densidad $g$ fácil de muestrear, con $f(x)\le M\,g(x)$ para todo $x$:
+
+1. Generar $X\sim g$ y $U\sim U(0,1)$ independientes.
+2. Si $U\le f(X)/\big(M\,g(X)\big)$, aceptar $X$; en otro caso, volver al paso 1.
+
+La probabilidad de aceptación es $1/M$, así que conviene un $M$ lo más pequeño posible.
+
+Ejemplo: $\text{Beta}(2,2)$ con densidad $f(x)=6x(1-x)$, cuyo máximo es $1{,}5$, tomando $g=U(0,1)$ y $M=1{,}5$.
+
+```{r}
+#| label: fig-rechazo
+#| fig-cap: "Muestra de una Beta(2, 2) obtenida por aceptación-rechazo."
+rechazo_beta22 <- function(n) {
+  salida <- numeric(0); intentos <- 0
+  while (length(salida) < n) {
+    x <- runif(n); u <- runif(n)
+    acept <- u <= (6 * x * (1 - x)) / 1.5
+    salida <- c(salida, x[acept]); intentos <- intentos + n
+  }
+  list(muestra = salida[1:n], tasa = n / intentos)
+}
+
+r <- rechazo_beta22(1e5)
+r$tasa        # debe ser cercana a 1/M = 0,667
+
+ggplot(tibble(x = r$muestra), aes(x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = dbeta, args = list(shape1 = 2, shape2 = 2), color = "red")
+```
+
+### Transformaciones específicas: Box-Muller
+
+La inversa de $\Phi$ no es elemental, pero con dos uniformes independientes $U_1,U_2$ se obtienen dos normales estándar independientes:
+
+$$Z_1=\sqrt{-2\ln U_1}\cos(2\pi U_2),\qquad Z_2=\sqrt{-2\ln U_1}\sin(2\pi U_2).$$
+
+```{r}
+n <- 5e4
+u1 <- runif(n); u2 <- runif(n)
+z1 <- sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+z2 <- sqrt(-2 * log(u1)) * sin(2 * pi * u2)
+c(media = mean(z1), desv = sd(z1), correlacion = cor(z1, z2))
+ks.test(z1, "pnorm")$p.value
+```
+
+### Mezclas
+
+Una **mezcla** $f=\sum_k w_k f_k$ se simula eligiendo primero la componente con probabilidades $w_k$ y generando después de ella.
+
+```{r}
+#| label: fig-mezcla
+#| fig-cap: "Mezcla de dos normales: 30 % de N(-2, 0,7) y 70 % de N(2, 1)."
+n <- 1e5
+comp <- sample(1:2, n, replace = TRUE, prob = c(0.3, 0.7))
+x_mix <- ifelse(comp == 1, rnorm(n, -2, 0.7), rnorm(n, 2, 1))
+
+ggplot(tibble(x = x_mix), aes(x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 80,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = function(x) 0.3 * dnorm(x, -2, 0.7) + 0.7 * dnorm(x, 2, 1),
+                color = "red")
+```
+
+### Resumen
+
+- Discretas: se suman las probabilidades de los valores con igual imagen.
+- Continuas: método de la función de distribución, o $f_Y(y)=f_X(h(y))\,|h'(y)|$ si $g$ es monótona.
+- Inversión: $X=F^{-1}(U)$; es exacta y eficiente si $F^{-1}$ es explícita.
+- Aceptación-rechazo: no necesita $F^{-1}$; la eficiencia es $1/M$.
+- Todo generador debe validarse con histogramas, cuantiles o `ks.test()`.

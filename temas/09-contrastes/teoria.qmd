@@ -1,0 +1,226 @@
+## Teoría
+
+### Objetivos
+
+- Plantear un contraste de hipótesis y distinguir error de tipo I, error de tipo II y potencia.
+- Interpretar correctamente el p-valor y relacionarlo con los intervalos de confianza.
+- Aplicar los contrastes habituales: t, proporciones, chi-cuadrado, normalidad y ANOVA.
+- Usar alternativas no paramétricas y de remuestreo, y corregir por comparaciones múltiples.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(2026)
+```
+
+### Elementos de un contraste
+
+Un contraste enfrenta dos hipótesis sobre un parámetro $\theta$: la **hipótesis nula** $H_0$ (la que se mantiene salvo evidencia en contra) y la **alternativa** $H_1$. Se elige un **estadístico de contraste** $T$ cuya distribución bajo $H_0$ es conocida y una **región crítica** donde se rechaza $H_0$.
+
+| | $H_0$ cierta | $H_0$ falsa |
+|---|---|---|
+| **Rechazar $H_0$** | Error de tipo I ($\alpha$) | Decisión correcta (potencia $=1-\beta$) |
+| **No rechazar $H_0$** | Decisión correcta | Error de tipo II ($\beta$) |
+
+El **nivel de significación** $\alpha$ es la probabilidad máxima de error de tipo I. La **potencia** es la probabilidad de rechazar $H_0$ cuando es falsa.
+
+### El p-valor
+
+El **p-valor** es la probabilidad, calculada bajo $H_0$, de obtener un estadístico al menos tan extremo como el observado. Se rechaza $H_0$ al nivel $\alpha$ si p-valor $<\alpha$.
+
+::: {.callout-warning}
+El p-valor **no** es la probabilidad de que $H_0$ sea cierta, ni la de que el resultado se deba al azar. Un p-valor alto no demuestra $H_0$; solo indica falta de evidencia en su contra.
+:::
+
+Bajo $H_0$ y con un estadístico continuo, el p-valor es uniforme en $(0,1)$. Por eso la tasa de error de tipo I es exactamente $\alpha$:
+
+```{r}
+#| label: fig-pvalor-uniforme
+#| fig-cap: "Distribución del p-valor de un test t cuando H0 es cierta."
+p <- replicate(10000, t.test(rnorm(20, mean = 0), mu = 0)$p.value)
+mean(p < 0.05)
+ggplot(tibble(p), aes(p)) + geom_histogram(bins = 20, boundary = 0, fill = "steelblue", color = "white")
+```
+
+### Contrastes sobre medias
+
+#### Una muestra
+
+$$T=\frac{\bar X-\mu_0}{S/\sqrt n}\ \sim\ t_{n-1}\quad\text{bajo }H_0:\mu=\mu_0.$$
+
+```{r}
+peso <- na.omit(penguins$body_mass_g)
+n <- length(peso)
+t_obs <- (mean(peso) - 4000) / (sd(peso) / sqrt(n))
+c(estadistico = t_obs, p_valor = 2 * pt(-abs(t_obs), df = n - 1))
+t.test(peso, mu = 4000)
+```
+
+El p-valor coincide con el de `t.test()`. El intervalo de confianza del 95 % es el conjunto de valores $\mu_0$ que **no** se rechazarían al 5 %.
+
+#### Dos muestras independientes
+
+`t.test()` aplica por defecto la corrección de **Welch**, que no supone varianzas iguales.
+
+```{r}
+dos <- penguins |> filter(species %in% c("Adelie", "Gentoo"))
+t.test(body_mass_g ~ species, data = dos)
+```
+
+#### Muestras pareadas
+
+Cuando las dos medidas son del mismo individuo se contrasta la media de las diferencias.
+
+```{r}
+# Horas extra de sueño de los mismos 10 pacientes con dos fármacos
+t.test(sleep$extra[sleep$group == 1], sleep$extra[sleep$group == 2], paired = TRUE)
+```
+
+En versiones recientes de R, `paired = TRUE` solo se admite con los dos vectores, no con la interfaz de fórmula.
+
+#### Comparación de varianzas
+
+```{r}
+var.test(body_mass_g ~ species, data = dos)
+```
+
+### Tamaño del efecto
+
+Con muestras grandes, diferencias minúsculas resultan significativas. Conviene acompañar el p-valor de una medida de magnitud, como la **d de Cohen**:
+
+$$d=\frac{\bar x_1-\bar x_2}{s_p},\qquad s_p=\sqrt{\frac{(n_1-1)s_1^2+(n_2-1)s_2^2}{n_1+n_2-2}}.$$
+
+```{r}
+a <- na.omit(dos$body_mass_g[dos$species == "Adelie"])
+g <- na.omit(dos$body_mass_g[dos$species == "Gentoo"])
+sp <- sqrt(((length(a) - 1) * var(a) + (length(g) - 1) * var(g)) / (length(a) + length(g) - 2))
+(mean(g) - mean(a)) / sp
+```
+
+### Potencia y tamaño muestral
+
+La potencia depende del tamaño del efecto, de $\alpha$, de la variabilidad y de $n$. `power.t.test()` resuelve para cualquiera de ellos:
+
+```{r}
+power.t.test(n = 30, delta = 0.5, sd = 1, sig.level = 0.05)       # potencia con n = 30
+power.t.test(power = 0.8, delta = 0.5, sd = 1, sig.level = 0.05)  # n necesario por grupo
+```
+
+```{r}
+#| label: fig-potencia
+#| fig-cap: "Potencia del test t de dos muestras según el tamaño muestral por grupo."
+expand_grid(n = seq(5, 150, by = 5), delta = c(0.2, 0.5, 0.8)) |>
+  mutate(potencia = map2_dbl(n, delta, ~ power.t.test(n = .x, delta = .y, sd = 1)$power),
+         delta = factor(delta)) |>
+  ggplot(aes(n, potencia, color = delta)) +
+  geom_line() +
+  geom_hline(yintercept = 0.8, linetype = "dashed") +
+  labs(x = "n por grupo", y = "Potencia", color = "Efecto (d)")
+```
+
+### Contrastes sobre proporciones
+
+```{r}
+sexo <- table(penguins$sex)
+prop.test(sexo["male"], sum(sexo), p = 0.5)            # aproximación normal
+binom.test(sexo["male"], sum(sexo), p = 0.5)           # exacto
+```
+
+Para comparar dos proporciones se pasa un vector de éxitos y otro de tamaños:
+
+```{r}
+prop.test(x = c(45, 30), n = c(100, 90))
+```
+
+### Contrastes chi-cuadrado
+
+#### Bondad de ajuste
+
+¿Es equilibrado un dado? Estadístico $\chi^2=\sum (O_i-E_i)^2/E_i$, con $k-1$ grados de libertad.
+
+```{r}
+caras <- c(18, 25, 14, 22, 19, 22)
+chisq.test(caras, p = rep(1/6, 6))
+```
+
+#### Independencia
+
+Se contrasta $H_0$: las variables son independientes. Los **residuos de Pearson** indican qué celdas se apartan más de lo esperado.
+
+```{r}
+tabla <- table(penguins$species, penguins$island)
+test <- chisq.test(tabla)
+test
+round(test$stdres, 1)
+```
+
+Cuando alguna frecuencia esperada es menor que 5, se usa el **test exacto de Fisher**:
+
+```{r}
+fisher.test(table(mtcars$am, mtcars$vs))
+```
+
+### Contrastes de normalidad
+
+```{r}
+#| label: fig-qq-normal
+#| fig-cap: "Gráfico cuantil-cuantil del peso de los pingüinos."
+shapiro.test(peso)
+ggplot(tibble(peso), aes(sample = peso)) + stat_qq() + stat_qq_line()
+```
+
+Con muestras grandes, `shapiro.test()` rechaza ante desviaciones irrelevantes: conviene apoyarse en el gráfico cuantil-cuantil.
+
+### Alternativas no paramétricas y de remuestreo
+
+El test de **Wilcoxon-Mann-Whitney** compara dos poblaciones sin suponer normalidad:
+
+```{r}
+wilcox.test(body_mass_g ~ species, data = dos)
+```
+
+Un **test de permutaciones** construye la distribución del estadístico bajo $H_0$ reasignando las etiquetas al azar:
+
+```{r}
+#| label: fig-permutacion
+#| fig-cap: "Distribución de permutaciones de la diferencia de medias."
+obs <- mean(g) - mean(a)
+todos <- c(a, g); n_a <- length(a)
+perm <- replicate(10000, {
+  idx <- sample(length(todos), n_a)
+  mean(todos[-idx]) - mean(todos[idx])
+})
+mean(abs(perm) >= abs(obs))     # p-valor de permutaciones
+
+ggplot(tibble(perm), aes(perm)) +
+  geom_histogram(bins = 40, fill = "steelblue", color = "white") +
+  geom_vline(xintercept = c(-obs, obs), color = "red")
+```
+
+### ANOVA de un factor
+
+Para comparar las medias de $k$ grupos a la vez se usa el estadístico $F$ (cociente entre variabilidad entre grupos y dentro de grupos). Si resulta significativo, `TukeyHSD()` identifica qué pares difieren, corrigiendo el nivel global.
+
+```{r}
+modelo <- aov(body_mass_g ~ species, data = penguins)
+summary(modelo)
+TukeyHSD(modelo)
+```
+
+### Comparaciones múltiples
+
+Si se realizan $m$ contrastes al nivel $\alpha$, la probabilidad de al menos un falso positivo crece: $1-(1-\alpha)^m$. Con 20 contrastes es casi $0{,}64$ y con 100 se esperan unos 5 falsos positivos aunque no haya ningún efecto real.
+
+```{r}
+p <- replicate(100, t.test(rnorm(20))$p.value)      # 100 contrastes con H0 cierta
+sum(p < 0.05)
+sum(p.adjust(p, "bonferroni") < 0.05)               # controla la tasa de error global
+sum(p.adjust(p, "BH") < 0.05)                       # controla la tasa de falsos descubrimientos
+```
+
+### Resumen
+
+- Se fija $\alpha$ antes de ver los datos; la potencia se planifica con `power.t.test()`.
+- El p-valor se interpreta bajo $H_0$; el intervalo de confianza y el tamaño del efecto aportan la magnitud.
+- t, proporciones, chi-cuadrado y ANOVA cubren los casos habituales; permutaciones y Wilcoxon relajan supuestos.
+- Con muchos contrastes hay que corregir (Bonferroni, Holm, Benjamini-Hochberg).

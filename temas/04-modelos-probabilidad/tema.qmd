@@ -1,0 +1,5 @@
+# Modelos de probabilidad
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

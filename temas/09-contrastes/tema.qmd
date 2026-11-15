@@ -1,4 +1,4 @@
-# Probabilidad y distribuciones
+# Contrastes de hipótesis
 
 {{< include teoria.qmd >}}
 

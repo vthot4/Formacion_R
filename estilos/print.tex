@@ -3,3 +3,5 @@
 \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
 \usepackage{etoolbox}
 \AtBeginEnvironment{quote}{\small}
+% Que las salidas de R (entorno verbatim) se partan en lugar de desbordar el margen
+\AtBeginDocument{\DefineVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere}}

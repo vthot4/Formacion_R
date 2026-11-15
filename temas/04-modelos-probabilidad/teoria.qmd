@@ -1,0 +1,186 @@
+## Teoría
+
+### Objetivos
+
+- Conocer los principales modelos discretos y continuos, sus parámetros, su media y su varianza.
+- Usar con soltura las funciones `d`, `p`, `q` y `r` de R.
+- Reconocer las relaciones entre modelos (aproximaciones y transformaciones).
+- Entender la propiedad de pérdida de memoria y el papel de las distribuciones $\chi^2$, $t$ y $F$.
+
+```{r}
+library(tidyverse)
+```
+
+### Las cuatro funciones de R
+
+Para cada familia, R ofrece cuatro funciones con un prefijo común:
+
+| Prefijo | Calcula | Ejemplo |
+|---------|---------|---------|
+| `d` | $p(x)$ o $f(x)$ | `dbinom()`, `dnorm()` |
+| `p` | $F(x)=P(X\le x)$ | `pbinom()`, `pnorm()` |
+| `q` | cuantil $F^{-1}(\alpha)$ | `qbinom()`, `qnorm()` |
+| `r` | muestra aleatoria | `rbinom()`, `rnorm()` |
+
+La opción `lower.tail = FALSE` calcula $P(X>x)$ con más precisión que `1 - p...()` en las colas.
+
+### Modelos discretos
+
+| Modelo | Soporte | $E[X]$ | $V[X]$ | R |
+|--------|---------|--------|--------|---|
+| Uniforme discreta $U\{1,\dots,k\}$ | $1,\dots,k$ | $(k+1)/2$ | $(k^2-1)/12$ | `sample()` |
+| Bernoulli$(p)$ | $0,1$ | $p$ | $p(1-p)$ | `binom` con `size = 1` |
+| Binomial$(n,p)$ | $0,\dots,n$ | $np$ | $np(1-p)$ | `binom` |
+| Poisson$(\lambda)$ | $0,1,2,\dots$ | $\lambda$ | $\lambda$ | `pois` |
+| Geométrica$(p)$ | $0,1,2,\dots$ | $(1-p)/p$ | $(1-p)/p^2$ | `geom` |
+| Binomial negativa$(r,p)$ | $0,1,2,\dots$ | $r(1-p)/p$ | $r(1-p)/p^2$ | `nbinom` |
+| Hipergeométrica$(N,K,n)$ | $\max(0,n-N+K),\dots,\min(n,K)$ | $nK/N$ | $n\frac{K}{N}\frac{N-K}{N}\frac{N-n}{N-1}$ | `hyper` |
+
+::: {.callout-warning}
+En R la geométrica y la binomial negativa cuentan los **fracasos antes** del primer éxito (o del éxito $r$-ésimo). Muchos textos cuentan el número de ensayos, que es esa variable más 1.
+:::
+
+```{r}
+#| label: fig-modelos-discretos
+#| fig-cap: "Funciones de probabilidad de la binomial, Poisson y geométrica."
+x <- 0:15
+bind_rows(
+  tibble(x, p = dbinom(x, 15, 0.3),   modelo = "Binomial(15; 0,3)"),
+  tibble(x, p = dpois(x, 4.5),        modelo = "Poisson(4,5)"),
+  tibble(x, p = dgeom(x, 0.25),       modelo = "Geométrica(0,25)")
+) |>
+  ggplot(aes(x, p)) +
+  geom_col(fill = "steelblue") +
+  facet_wrap(~modelo)
+```
+
+#### Aproximación de la binomial por la Poisson
+
+Si $n$ es grande y $p$ pequeño con $np=\lambda$ moderado, $\text{Bin}(n,p)\approx\text{Poisson}(\lambda)$.
+
+```{r}
+n <- 1000; p <- 0.003
+k <- 0:10
+round(cbind(k, binomial = dbinom(k, n, p), poisson = dpois(k, n * p)), 5)
+```
+
+#### Hipergeométrica: muestreo sin reposición
+
+Una urna con $K=7$ bolas rojas y $N-K=13$ azules; se extraen $n=5$ sin reposición. En R los argumentos son `m` (éxitos), `n` (fracasos) y `k` (tamaño de muestra).
+
+```{r}
+dhyper(2, m = 7, n = 13, k = 5)    # P(exactamente 2 rojas)
+dbinom(2, size = 5, prob = 7/20)   # con reposición: valor próximo, no igual
+```
+
+### Modelos continuos
+
+| Modelo | Soporte | Densidad | $E[X]$ | $V[X]$ | R |
+|--------|---------|----------|--------|--------|---|
+| Uniforme$(a,b)$ | $(a,b)$ | $\frac{1}{b-a}$ | $\frac{a+b}{2}$ | $\frac{(b-a)^2}{12}$ | `unif` |
+| Exponencial$(\lambda)$ | $(0,\infty)$ | $\lambda e^{-\lambda x}$ | $1/\lambda$ | $1/\lambda^2$ | `exp` |
+| Normal$(\mu,\sigma)$ | $\mathbb{R}$ | $\frac{1}{\sigma\sqrt{2\pi}}e^{-\frac{(x-\mu)^2}{2\sigma^2}}$ | $\mu$ | $\sigma^2$ | `norm` |
+| Gamma$(\alpha,\beta)$ | $(0,\infty)$ | $\frac{\beta^\alpha}{\Gamma(\alpha)}x^{\alpha-1}e^{-\beta x}$ | $\alpha/\beta$ | $\alpha/\beta^2$ | `gamma` |
+| Beta$(a,b)$ | $(0,1)$ | $\frac{x^{a-1}(1-x)^{b-1}}{B(a,b)}$ | $\frac{a}{a+b}$ | $\frac{ab}{(a+b)^2(a+b+1)}$ | `beta` |
+| Weibull$(k,\lambda)$ | $(0,\infty)$ | $\frac{k}{\lambda}\left(\frac{x}{\lambda}\right)^{k-1}e^{-(x/\lambda)^k}$ | $\lambda\Gamma(1+1/k)$ | — | `weibull` |
+
+```{r}
+#| label: fig-modelos-continuos
+#| fig-cap: "Densidades de la gamma y la beta para distintos parámetros."
+gammas <- expand_grid(x = seq(0.01, 12, length.out = 300), alfa = c(1, 2, 5)) |>
+  mutate(densidad = dgamma(x, shape = alfa, rate = 1),
+         familia = "Gamma(α, 1)", parametros = paste("α =", alfa))
+
+betas <- tribble(
+  ~a,  ~b,
+  0.5, 0.5,
+  2,   5,
+  5,   2
+) |>
+  mutate(x = list(seq(0.001, 0.999, length.out = 300))) |>
+  unnest(x) |>
+  mutate(densidad = dbeta(x, a, b),
+         familia = "Beta(a, b)", parametros = paste0("a = ", a, ", b = ", b))
+
+bind_rows(gammas, betas) |>
+  ggplot(aes(x, densidad, color = parametros)) +
+  geom_line() +
+  coord_cartesian(ylim = c(0, 4)) +
+  facet_wrap(~familia, scales = "free_x") +
+  labs(color = NULL)
+```
+
+#### La normal
+
+Es el modelo central por el teorema central del límite. Si $X\sim N(\mu,\sigma)$, entonces $Z=(X-\mu)/\sigma\sim N(0,1)$ y
+
+$$P(\mu-k\sigma < X < \mu+k\sigma) = 2\Phi(k)-1,$$
+
+que vale aproximadamente 0,683; 0,954 y 0,997 para $k=1,2,3$.
+
+```{r}
+2 * pnorm(1:3) - 1
+qnorm(c(0.025, 0.975))     # cuantiles 1,96 que se usan en los intervalos al 95 %
+```
+
+#### La exponencial y la pérdida de memoria
+
+La exponencial es la única v.a. continua con **pérdida de memoria**: $P(X>s+t\mid X>s)=P(X>t)$. Modela tiempos de espera entre eventos de un proceso de Poisson.
+
+```{r}
+lambda <- 0.5; s <- 2; t <- 3
+pexp(s + t, lambda, lower.tail = FALSE) / pexp(s, lambda, lower.tail = FALSE)
+pexp(t, lambda, lower.tail = FALSE)
+```
+
+### Distribuciones asociadas a la normal
+
+Dadas $Z_1,\dots,Z_n$ normales estándar independientes:
+
+- $\chi^2_n = Z_1^2+\cdots+Z_n^2$, que es una $\text{Gamma}(n/2,\,1/2)$.
+- $t_n = Z/\sqrt{\chi^2_n/n}$, con $Z$ independiente de $\chi^2_n$. Tiene colas más pesadas que la normal y tiende a ella cuando $n\to\infty$.
+- $F_{m,n} = \dfrac{\chi^2_m/m}{\chi^2_n/n}$, con ambas $\chi^2$ independientes.
+
+Lo comprobamos por simulación:
+
+```{r}
+#| label: fig-chi2-sim
+#| fig-cap: "Suma de 4 normales al cuadrado frente a la densidad chi-cuadrado con 4 grados de libertad."
+set.seed(7)
+n <- 4
+chi <- replicate(1e5, sum(rnorm(n)^2))
+mean(chi); var(chi)       # n y 2n
+
+ggplot(tibble(chi), aes(chi)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 60,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = dchisq, args = list(df = n), color = "red")
+```
+
+```{r}
+#| label: fig-t-colas
+#| fig-cap: "La t de Student tiene colas más pesadas que la normal."
+ggplot(tibble(x = c(-5, 5)), aes(x)) +
+  stat_function(fun = dnorm, aes(color = "N(0,1)")) +
+  stat_function(fun = dt, args = list(df = 3), aes(color = "t con 3 g.l.")) +
+  labs(color = NULL, y = "Densidad")
+qnorm(0.975); qt(0.975, df = c(3, 10, 30, 1000))
+```
+
+### Cómo elegir un modelo
+
+| Situación | Modelo candidato |
+|-----------|------------------|
+| Éxitos en $n$ ensayos independientes | Binomial |
+| Conteo de sucesos raros en un intervalo | Poisson |
+| Ensayos hasta el primer éxito | Geométrica |
+| Tiempo de espera entre sucesos | Exponencial, Gamma, Weibull |
+| Proporción o probabilidad desconocida | Beta |
+| Suma de muchos efectos pequeños | Normal |
+
+### Resumen
+
+- Cada modelo queda fijado por sus parámetros; conviene saber media, varianza y soporte.
+- `d/p/q/r` + nombre del modelo cubren densidad, distribución, cuantiles y simulación.
+- Binomial$\to$Poisson y suma de exponenciales$\to$Gamma son relaciones que se comprueban por simulación.
+- $\chi^2$, $t$ y $F$ se construyen a partir de normales y son la base de la inferencia.

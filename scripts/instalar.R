@@ -1,5 +1,5 @@
 # Instala los paquetes necesarios para el curso y comprueba que quedan disponibles.
-paquetes <- c("tidyverse", "palmerpenguins", "knitr", "rmarkdown")
+paquetes <- c("tidyverse", "palmerpenguins", "MASS", "knitr", "rmarkdown")
 
 pendientes <- setdiff(paquetes, rownames(installed.packages()))
 if (length(pendientes) > 0) install.packages(pendientes)

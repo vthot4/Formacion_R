@@ -3,7 +3,7 @@ project:
   output-dir: _book
 
 book:
-  title: "Formación en R: estadística básica"
+  title: "Formación en R: modelos estadísticos"
   author: "Formación R"
   date: today
   output-file: formacion-r
@@ -16,15 +16,20 @@ book:
     - index.qmd
     - temas/01-introduccion-r/tema.qmd
     - temas/02-estadistica-descriptiva/tema.qmd
-    - temas/03-probabilidad/tema.qmd
-    - temas/04-inferencia/tema.qmd
-    - temas/05-regresion/tema.qmd
+    - temas/03-variables-aleatorias/tema.qmd
+    - temas/04-modelos-probabilidad/tema.qmd
+    - temas/05-transformaciones-simulacion/tema.qmd
+    - temas/06-vectores-aleatorios/tema.qmd
+    - temas/07-operaciones-limites/tema.qmd
+    - temas/08-estimacion/tema.qmd
+    - temas/09-contrastes/tema.qmd
+    - temas/10-regresion/tema.qmd
+    - temas/11-modelos-lineales-generalizados/tema.qmd
     # --- Añade aquí los nuevos temas (ver plantillas/tema/) ---
 
 lang: es
 
 execute:
-  freeze: auto
   warning: false
   message: false
 

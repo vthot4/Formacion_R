@@ -1,4 +1,4 @@
-# Correlación y regresión lineal
+# Modelos lineales generalizados
 
 {{< include teoria.qmd >}}
 

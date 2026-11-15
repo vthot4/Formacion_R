@@ -1,0 +1,127 @@
+## Laboratorio
+
+### Objetivos
+
+Implementar y validar generadores de variables aleatorias, y obtener distribuciones de transformaciones.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: distribución de una transformación discreta
+
+Sea $X$ con soporte $\{-1,0,1,2\}$ y probabilidades $0{,}2;\,0{,}3;\,0{,}1;\,0{,}4$. Halla la distribución de $Y=|X|$ y su esperanza.
+
+```{r}
+dist_y <- tibble(x = c(-1, 0, 1, 2), p = c(0.2, 0.3, 0.1, 0.4)) |>
+  mutate(y = abs(x)) |>
+  group_by(y) |>
+  summarise(p = sum(p))
+dist_y
+sum(dist_y$y * dist_y$p)
+```
+
+#### Ejercicio 2: inversión de una Weibull
+
+Para la Weibull de forma $k$ y escala $\lambda$, $F(x)=1-e^{-(x/\lambda)^k}$, de modo que $F^{-1}(u)=\lambda\,(-\ln(1-u))^{1/k}$. Simúlala y valídala.
+
+```{r}
+k <- 2; lambda <- 3
+x_w <- lambda * (-log(1 - runif(1e5)))^(1 / k)
+c(media = mean(x_w), teorica = lambda * gamma(1 + 1 / k))
+ks.test(x_w, "pweibull", shape = k, scale = lambda)$p.value
+```
+
+#### Ejercicio 3: cambio de variable
+
+Si $X\sim U(0,1)$, ¿qué distribución tiene $Y=-\ln X$? Por la regla del cambio de variable, $h(y)=e^{-y}$ y $f_Y(y)=1\cdot e^{-y}$, es decir, $\text{Exp}(1)$.
+
+```{r}
+y <- -log(runif(1e5))
+ks.test(y, "pexp", rate = 1)$p.value
+```
+
+#### Ejercicio 4: aceptación-rechazo con una Beta(3, 2)
+
+La densidad es $f(x)=12x^2(1-x)$, con máximo $16/9$ en $x=2/3$. Tomando $g=U(0,1)$, $M=16/9$.
+
+```{r}
+M <- 16 / 9
+n <- 1e5
+x <- runif(n); u <- runif(n)
+aceptados <- x[u <= (12 * x^2 * (1 - x)) / M]
+c(tasa_observada = length(aceptados) / n, tasa_teorica = 1 / M)
+ks.test(aceptados, "pbeta", shape1 = 3, shape2 = 2)$p.value
+```
+
+#### Ejercicio 5: Box-Muller
+
+Genera una muestra normal con media 10 y desviación típica 2 usando Box-Muller y compara sus cuantiles con los teóricos.
+
+```{r}
+#| label: fig-lab-bm
+#| fig-cap: "Gráfico cuantil-cuantil de la muestra generada con Box-Muller."
+u1 <- runif(5e4); u2 <- runif(5e4)
+z <- sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+x <- 10 + 2 * z
+
+q <- c(0.01, 0.1, 0.5, 0.9, 0.99)
+rbind(muestra = quantile(x, q), teoricos = qnorm(q, 10, 2))
+
+ggplot(tibble(x), aes(sample = x)) + stat_qq(distribution = qnorm, dparams = list(mean = 10, sd = 2)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = 10, sd = 2))
+```
+
+### Ejercicios propuestos
+
+1. Simula 1e5 valores de una **Cauchy estándar** por inversión ($F^{-1}(u)=\tan(\pi(u-1/2))$). Calcula la media muestral con tamaños crecientes y explica por qué no converge.
+2. Simula una **Pareto** con $F(x)=1-(x_m/x)^a$ para $x\ge x_m$ ($x_m=1$, $a=3$) y compara su media muestral con la teórica $a\,x_m/(a-1)$.
+3. Si $X\sim N(0,1)$, halla la distribución de $Y=|X|$ por el método de la función de distribución y compárala con una simulación.
+4. Genera una variable discreta con soporte $\{10,20,30,40\}$ y probabilidades $0{,}1;\,0{,}2;\,0{,}3;\,0{,}4$ por inversión, y contrasta las frecuencias con `chisq.test()`.
+5. Implementa aceptación-rechazo para la densidad $f(x)=\tfrac{3}{4}(1-x^2)$ en $(-1,1)$, con $g$ uniforme en $(-1,1)$ (densidad $1/2$). ¿Cuál es el $M$ óptimo y la tasa de aceptación?
+6. Simula una mezcla del 50 % de $N(0,1)$ y 50 % de $N(4,1)$. Calcula su media y su varianza teóricas (ley de la esperanza total) y compáralas con las muestrales.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1: la media de una Cauchy no existe; la media muestral no se estabiliza
+x <- tan(pi * (runif(1e5) - 0.5))
+sapply(c(1e2, 1e3, 1e4, 1e5), function(n) mean(x[1:n]))
+
+# 2: Pareto
+a <- 3
+xp <- (1 - runif(1e5))^(-1 / a)
+c(mean(xp), a / (a - 1))
+
+# 3: F_Y(y) = 2*Phi(y) - 1 para y > 0
+y <- abs(rnorm(1e5))
+mean(y <= 1.2); 2 * pnorm(1.2) - 1
+
+# 4
+v <- c(10, 20, 30, 40); pr <- c(0.1, 0.2, 0.3, 0.4)
+x4 <- v[findInterval(runif(1e5), c(0, cumsum(pr)))]
+chisq.test(table(x4), p = pr)
+
+# 5: el máximo de f es f(0) = 3/4 y g = 1/2, luego M = 3/2 y la tasa es 2/3
+f5 <- function(x) 0.75 * (1 - x^2)
+M <- f5(0) / 0.5                 # f <= M * g
+M; 1 / M
+x <- runif(1e5, -1, 1); u <- runif(1e5)
+x5 <- x[u <= f5(x) / (M * 0.5)]
+length(x5) / 1e5
+ks.test(x5, function(x) 0.5 + 0.75 * x - 0.25 * x^3)$p.value
+
+# 6: media 2, varianza = 1 + 4 = 5
+comp <- sample(0:1, 1e5, replace = TRUE)
+xm <- rnorm(1e5, mean = 4 * comp, sd = 1)
+c(mean(xm), var(xm))
+```
+:::

@@ -1,0 +1,194 @@
+## Teoría
+
+### Objetivos
+
+- Plantear el modelo lineal en forma matricial y obtener los mínimos cuadrados.
+- Interpretar los coeficientes, el $R^2$, los contrastes $t$ y $F$ y los intervalos de confianza y de predicción.
+- Diagnosticar el modelo: residuos, puntos influyentes y multicolinealidad.
+- Comparar modelos con AIC, BIC y validación cruzada.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(2026)
+```
+
+### El modelo lineal
+
+Para $n$ observaciones y $p$ coeficientes (incluida la constante), el modelo es
+
+$$\mathbf{y}=X\boldsymbol\beta+\boldsymbol\varepsilon,\qquad \boldsymbol\varepsilon\sim N(\mathbf{0},\sigma^2 I_n),$$
+
+con $X$ la matriz de diseño ($n\times p$). Los supuestos son: linealidad en los parámetros, independencia de los errores, varianza constante (homocedasticidad) y, para la inferencia exacta, normalidad.
+
+### Mínimos cuadrados
+
+El estimador de mínimos cuadrados ordinarios (MCO) minimiza $\|\mathbf{y}-X\boldsymbol\beta\|^2$ y vale
+
+$$\hat{\boldsymbol\beta}=(X^\top X)^{-1}X^\top\mathbf{y},\qquad \hat\sigma^2=\frac{\sum e_i^2}{n-p},\qquad \widehat{V}[\hat{\boldsymbol\beta}]=\hat\sigma^2(X^\top X)^{-1}.$$
+
+Bajo normalidad coincide con el estimador de máxima verosimilitud. Lo calculamos a mano con `mtcars` y lo comparamos con `lm()`:
+
+```{r}
+y <- mtcars$mpg
+X <- cbind(1, mtcars$wt)                       # constante y peso
+n <- nrow(X); p <- ncol(X)
+
+beta  <- solve(crossprod(X), crossprod(X, y))  # (X'X)^-1 X'y
+resid <- y - X %*% beta
+sigma2 <- sum(resid^2) / (n - p)
+se <- sqrt(diag(sigma2 * solve(crossprod(X))))
+
+cbind(beta, se)
+coef(summary(lm(mpg ~ wt, data = mtcars)))[, 1:2]
+```
+
+### Regresión lineal simple
+
+```{r}
+m1 <- lm(mpg ~ wt, data = mtcars)
+summary(m1)
+confint(m1)
+```
+
+- La **pendiente** es el cambio medio de `mpg` por cada unidad de `wt`.
+- $R^2=1-\text{SCR}/\text{SCT}$ es la fracción de variabilidad explicada.
+- El contraste $t$ de cada coeficiente contrasta $H_0:\beta_j=0$; el contraste $F$ global, que todos los coeficientes (salvo la constante) sean 0.
+
+#### Intervalo de confianza y de predicción
+
+El **intervalo de confianza** acota la **recta media** $E[Y\mid x]$; el **intervalo de predicción** acota una **observación nueva** y por eso es más ancho: incluye la variabilidad del error.
+
+```{r}
+#| label: fig-bandas
+#| fig-cap: "Recta ajustada con banda de confianza (oscura) y de predicción (clara) al 95 %."
+nuevos <- tibble(wt = seq(1.5, 5.5, length.out = 100))
+conf <- predict(m1, nuevos, interval = "confidence") |> as_tibble()
+pred <- predict(m1, nuevos, interval = "prediction") |> as_tibble()
+
+ggplot() +
+  geom_ribbon(aes(nuevos$wt, ymin = pred$lwr, ymax = pred$upr), alpha = 0.15) +
+  geom_ribbon(aes(nuevos$wt, ymin = conf$lwr, ymax = conf$upr), alpha = 0.35) +
+  geom_line(aes(nuevos$wt, conf$fit), color = "steelblue") +
+  geom_point(aes(wt, mpg), data = mtcars) +
+  labs(x = "Peso (1000 lb)", y = "Millas por galón")
+```
+
+### Regresión lineal múltiple
+
+Con varios predictores, cada coeficiente se interpreta **manteniendo constantes los demás** (*ceteris paribus*). Las variables categóricas entran como variables indicadoras respecto a un nivel de referencia.
+
+```{r}
+coches <- mtcars |> mutate(am = factor(am, labels = c("automático", "manual")))
+m2 <- lm(mpg ~ wt + hp + am, data = coches)
+summary(m2)
+```
+
+El $R^2$ siempre crece al añadir variables; el $R^2$ **ajustado** penaliza el número de predictores. Para comparar modelos anidados se usa el contraste $F$ parcial:
+
+```{r}
+anova(m1, m2)
+c(R2 = summary(m2)$r.squared, R2_ajustado = summary(m2)$adj.r.squared)
+```
+
+### Paradoja de Simpson
+
+Ignorar una variable relevante puede **invertir** el signo de una relación. En `penguins`, la profundidad del pico decrece con su longitud en el conjunto global, pero crece dentro de cada especie:
+
+```{r}
+#| label: fig-simpson
+#| fig-cap: "Paradoja de Simpson: la relación global es negativa, la intra-especie es positiva."
+pingu <- penguins |> drop_na()
+coef(lm(bill_depth_mm ~ bill_length_mm, data = pingu))
+coef(lm(bill_depth_mm ~ bill_length_mm + species, data = pingu))
+
+ggplot(pingu, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point(aes(color = species)) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  geom_smooth(aes(color = species), method = "lm", se = FALSE)
+```
+
+### Diagnóstico del modelo
+
+#### Residuos
+
+Los residuos deben parecer ruido: sin patrón frente a los valores ajustados, con dispersión constante y aproximadamente normales.
+
+```{r}
+#| label: fig-diagnostico
+#| fig-cap: "Residuos frente a ajustados y gráfico cuantil-cuantil."
+diag <- tibble(ajustado = fitted(m2), residuo = resid(m2), estandarizado = rstandard(m2))
+
+ggplot(diag, aes(ajustado, residuo)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_smooth(se = FALSE, color = "red")
+
+ggplot(diag, aes(sample = estandarizado)) + stat_qq() + stat_qq_line()
+```
+
+Una curvatura sugiere falta de linealidad; un embudo, heterocedasticidad; la desviación en el gráfico cuantil-cuantil, falta de normalidad.
+
+#### Puntos influyentes
+
+El **apalancamiento** $h_{ii}$ (`hatvalues()`) mide lo atípico que es un punto en el espacio de los predictores; la **distancia de Cook** combina apalancamiento y residuo para medir cuánto cambiaría el ajuste al eliminarlo.
+
+```{r}
+influencia <- tibble(coche = rownames(mtcars), apalancamiento = hatvalues(m2),
+                     cook = cooks.distance(m2))
+influencia |> arrange(desc(cook)) |> head(4)
+```
+
+Como regla orientativa se revisan los puntos con $D_i>4/n$.
+
+#### Multicolinealidad
+
+Si los predictores están muy correlacionados, los coeficientes se vuelven inestables y sus errores típicos, grandes. El **factor de inflación de la varianza** $\text{VIF}_j=1/(1-R_j^2)$, con $R_j^2$ el de regresar $X_j$ sobre los demás, la cuantifica (valores por encima de 5–10 son preocupantes).
+
+```{r}
+vif_manual <- function(modelo) {
+  X <- model.matrix(modelo)[, -1, drop = FALSE]
+  sapply(seq_len(ncol(X)), function(j) 1 / (1 - summary(lm(X[, j] ~ X[, -j]))$r.squared)) |>
+    setNames(colnames(X))
+}
+vif_manual(lm(mpg ~ wt + hp + disp + cyl, data = mtcars))
+```
+
+### Selección de modelos
+
+Los criterios de información equilibran ajuste y complejidad: $\text{AIC}=-2\ell+2p$ y $\text{BIC}=-2\ell+p\ln n$. **Menor es mejor**; BIC penaliza más la complejidad.
+
+```{r}
+m_poly <- lm(mpg ~ poly(hp, 2) + wt + am, data = coches)
+AIC(m1, m2, m_poly)
+BIC(m1, m2, m_poly)
+```
+
+### Validación predictiva
+
+Un modelo que ajusta bien los datos con los que se estimó puede predecir mal datos nuevos (**sobreajuste**). La **validación cruzada** de $k$ bloques estima el error de predicción fuera de la muestra:
+
+```{r}
+cv_rmse <- function(formula, datos, k = 10) {
+  respuesta <- all.vars(formula)[1]
+  bloque <- sample(rep(1:k, length.out = nrow(datos)))
+  mean(sapply(1:k, function(i) {
+    ajuste <- lm(formula, data = datos[bloque != i, ])
+    pred <- predict(ajuste, datos[bloque == i, ])
+    sqrt(mean((datos[[respuesta]][bloque == i] - pred)^2))
+  }))
+}
+
+c(solo_aleta   = cv_rmse(body_mass_g ~ flipper_length_mm, pingu),
+  con_especie  = cv_rmse(body_mass_g ~ flipper_length_mm + species, pingu),
+  con_todo     = cv_rmse(body_mass_g ~ flipper_length_mm + species + sex + bill_length_mm, pingu))
+```
+
+El RMSE de validación cruzada favorece los modelos que generalizan mejor, no los que más ajustan.
+
+### Resumen
+
+- $\hat{\boldsymbol\beta}=(X^\top X)^{-1}X^\top\mathbf{y}$; `lm()` lo calcula y `summary()` aporta errores típicos, $t$, $F$ y $R^2$.
+- Intervalo de confianza para la media, de predicción para una observación nueva.
+- Diagnóstico: residuos, `hatvalues()`, `cooks.distance()`, VIF.
+- Comparar modelos con $F$ parcial (anidados), AIC/BIC y, sobre todo, validación cruzada.

@@ -1,0 +1,5 @@
+# Estimación puntual y por intervalos
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

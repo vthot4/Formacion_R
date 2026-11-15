@@ -1,4 +1,4 @@
-# Inferencia estadística
+# Regresión lineal
 
 {{< include teoria.qmd >}}
 

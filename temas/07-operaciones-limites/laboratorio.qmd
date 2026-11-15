@@ -1,0 +1,116 @@
+## Laboratorio
+
+### Objetivos
+
+Comprobar por simulación propiedades de sumas, mínimos y máximos, y aplicar los teoremas límite y el método de Monte Carlo.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: suma de variables independientes
+
+Si $X\sim N(10,2)$ e $Y\sim N(5,1{,}5)$ son independientes, ¿cuál es la distribución de $X-2Y$? Calcula $P(X-2Y>2)$.
+
+La media es $10-2\cdot 5=0$ y la varianza $2^2+4\cdot 1{,}5^2=13$.
+
+```{r}
+m <- 0; s <- sqrt(13)
+pnorm(2, m, s, lower.tail = FALSE)
+
+x <- rnorm(1e5, 10, 2); y <- rnorm(1e5, 5, 1.5)
+mean(x - 2 * y > 2)
+```
+
+#### Ejercicio 2: suma de Poisson
+
+El número de llamadas a dos centralitas sigue Poisson de medias 4 y 6 por hora, de forma independiente. Calcula $P(\text{más de 12 llamadas en total})$.
+
+```{r}
+ppois(12, 4 + 6, lower.tail = FALSE)
+mean(rpois(1e5, 4) + rpois(1e5, 6) > 12)
+```
+
+#### Ejercicio 3: fiabilidad de un sistema
+
+Un sistema en serie falla cuando falla el primero de 3 componentes con vidas $\text{Exp}(0{,}1)$ independientes; en paralelo, cuando fallan todos. Compara las vidas medias.
+
+```{r}
+n <- 1e5
+v <- matrix(rexp(3 * n, rate = 0.1), ncol = 3)
+c(serie = mean(apply(v, 1, min)), teorica_serie = 1 / (3 * 0.1))
+c(paralelo = mean(apply(v, 1, max)), teorica_paralelo = (1 / 0.1) * (1 + 1/2 + 1/3))
+```
+
+#### Ejercicio 4: Chebyshev frente a la probabilidad exacta
+
+Para $X\sim N(0,1)$, compara $P(|X|\ge k)$ con la cota $1/k^2$.
+
+```{r}
+tibble(k = 1:4, exacta = 2 * pnorm(-k), chebyshev = 1 / k^2)
+```
+
+#### Ejercicio 5: Monte Carlo con control del error
+
+Estima $P(Z>2)$ para $Z\sim N(0,1)$ con $N=10^5$ simulaciones, y da un intervalo de confianza.
+
+```{r}
+N <- 1e5
+ind <- rnorm(N) > 2
+est <- mean(ind); ee <- sqrt(est * (1 - est) / N)
+c(estimacion = est, ic_inf = est - 1.96 * ee, ic_sup = est + 1.96 * ee,
+  exacto = pnorm(2, lower.tail = FALSE))
+```
+
+### Ejercicios propuestos
+
+1. Sean $X\sim\text{Bin}(10,0{,}3)$ e $Y\sim\text{Bin}(15,0{,}3)$ independientes. Calcula $P(X+Y\le 5)$ exactamente y por simulación.
+2. Halla $E[\max(X_1,X_2)]$ para $X_i\sim U(0,1)$ independientes de dos formas: con la distribución del máximo y con simulación.
+3. Un servidor recibe peticiones con tiempos entre llegadas $\text{Exp}(2)$ (por segundo). Usa el TCL para aproximar la probabilidad de que 100 peticiones lleguen en menos de 45 segundos y compárala con la exacta (suma de exponenciales = Gamma).
+4. Comprueba la ley de los grandes números con una variable de Bernoulli$(0{,}2)$: dibuja la frecuencia relativa acumulada hasta $n=5000$.
+5. Estima mediante Monte Carlo el volumen de la esfera unidad en $\mathbb{R}^3$ (usa el cubo $[-1,1]^3$) y compáralo con $4\pi/3$. ¿Cuántas simulaciones necesitas para un error típico menor que $0{,}005$?
+6. Usa el método delta para aproximar la desviación típica de $\bar X_n^2$ cuando $X\sim\text{Exp}(1)$ y $n=50$, y verifica con simulación.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1: X + Y ~ Bin(25, 0.3)
+pbinom(5, 25, 0.3)
+mean(rbinom(1e5, 10, 0.3) + rbinom(1e5, 15, 0.3) <= 5)
+
+# 2: F_max = x^2 -> densidad 2x -> E = 2/3
+integrate(function(x) x * 2 * x, 0, 1)$value
+mean(pmax(runif(1e5), runif(1e5)))
+
+# 3: suma ~ Gamma(100, 2); TCL: N(50, sqrt(100)/2 = 5)
+pgamma(45, shape = 100, rate = 2)
+pnorm(45, mean = 100 / 2, sd = 10 / 2)
+
+# 4
+x <- rbinom(5000, 1, 0.2)
+plot(cumsum(x) / seq_along(x), type = "l", ylab = "Frecuencia relativa", xlab = "n")
+abline(h = 0.2, lty = 2)
+
+# 5: probabilidad de caer en la esfera * 8
+N <- 1e6
+P <- matrix(runif(3 * N, -1, 1), ncol = 3)
+dentro <- rowSums(P^2) <= 1
+vol <- 8 * mean(dentro)
+ee <- 8 * sqrt(mean(dentro) * (1 - mean(dentro)) / N)
+c(volumen = vol, exacto = 4 * pi / 3, error_tipico = ee)
+# error_tipico ~ 8 * sqrt(p(1-p)/N), con p = pi/6: N >= (8 * 0.4996 / 0.005)^2 ~ 6.4e5
+(8 * sqrt(pi / 6 * (1 - pi / 6)) / 0.005)^2
+
+# 6: g(x) = x^2, g'(1) = 2, sigma = 1 -> sd ~ 2 / sqrt(50)
+2 / sqrt(50)
+sd(replicate(20000, mean(rexp(50))^2))
+```
+:::

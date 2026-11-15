@@ -1,6 +1,6 @@
-# Formación en R: estadística básica
+# Formación en R: modelos estadísticos
 
-Curso de R con teoría y laboratorios. El repositorio irá creciendo con nuevos temas, incluidos los específicos de la carrera.
+Curso de R con teoría y laboratorios para la asignatura *Modelos estadísticos* (Grado en Inteligencia Artificial). Va de la probabilidad y la simulación a la estimación, los contrastes, la regresión y los modelos lineales generalizados, con un nivel de grado avanzado. El repositorio irá creciendo con nuevos temas.
 
 ## Leer el libro
 
@@ -15,9 +15,15 @@ Ambos se regeneran solos con cada cambio en `main` (workflow `.github/workflows/
 |------|--------|-------------|--------|
 | 1. Introducción a R | [teoría](temas/01-introduccion-r/teoria.qmd) | [laboratorio](temas/01-introduccion-r/laboratorio.qmd) | borrador |
 | 2. Estadística descriptiva | [teoría](temas/02-estadistica-descriptiva/teoria.qmd) | [laboratorio](temas/02-estadistica-descriptiva/laboratorio.qmd) | borrador |
-| 3. Probabilidad y distribuciones | [teoría](temas/03-probabilidad/teoria.qmd) | [laboratorio](temas/03-probabilidad/laboratorio.qmd) | borrador |
-| 4. Inferencia | [teoría](temas/04-inferencia/teoria.qmd) | [laboratorio](temas/04-inferencia/laboratorio.qmd) | borrador |
-| 5. Correlación y regresión | [teoría](temas/05-regresion/teoria.qmd) | [laboratorio](temas/05-regresion/laboratorio.qmd) | borrador |
+| 3. Variables aleatorias | [teoría](temas/03-variables-aleatorias/teoria.qmd) | [laboratorio](temas/03-variables-aleatorias/laboratorio.qmd) | borrador |
+| 4. Modelos de probabilidad | [teoría](temas/04-modelos-probabilidad/teoria.qmd) | [laboratorio](temas/04-modelos-probabilidad/laboratorio.qmd) | borrador |
+| 5. Transformaciones de variables y simulación | [teoría](temas/05-transformaciones-simulacion/teoria.qmd) | [laboratorio](temas/05-transformaciones-simulacion/laboratorio.qmd) | borrador |
+| 6. Vectores aleatorios | [teoría](temas/06-vectores-aleatorios/teoria.qmd) | [laboratorio](temas/06-vectores-aleatorios/laboratorio.qmd) | borrador |
+| 7. Operaciones con variables aleatorias y teoremas límite | [teoría](temas/07-operaciones-limites/teoria.qmd) | [laboratorio](temas/07-operaciones-limites/laboratorio.qmd) | borrador |
+| 8. Estimación puntual y por intervalos | [teoría](temas/08-estimacion/teoria.qmd) | [laboratorio](temas/08-estimacion/laboratorio.qmd) | borrador |
+| 9. Contrastes de hipótesis | [teoría](temas/09-contrastes/teoria.qmd) | [laboratorio](temas/09-contrastes/laboratorio.qmd) | borrador |
+| 10. Regresión lineal | [teoría](temas/10-regresion/teoria.qmd) | [laboratorio](temas/10-regresion/laboratorio.qmd) | borrador |
+| 11. Modelos lineales generalizados | [teoría](temas/11-modelos-lineales-generalizados/teoria.qmd) | [laboratorio](temas/11-modelos-lineales-generalizados/laboratorio.qmd) | borrador |
 
 ## Requisitos
 

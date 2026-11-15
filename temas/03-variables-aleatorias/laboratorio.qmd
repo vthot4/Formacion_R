@@ -1,0 +1,140 @@
+## Laboratorio
+
+### Objetivos
+
+Comprobar propiedades de variables aleatorias discretas y continuas con cálculo numérico, derivación simbólica y simulación.
+
+```{r}
+library(tidyverse)
+set.seed(2026)
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: ¿es una función de probabilidad?
+
+Calcula la constante $c$ para que $p(x)=c\,(1/2)^x$, con $x=0,1,2,\dots$, sea una función de probabilidad.
+
+La suma es una serie geométrica: $\sum_{x\ge 0}(1/2)^x = 2$, luego $c=1/2$. Lo comprobamos truncando la serie:
+
+```{r}
+xs <- 0:200
+p <- 0.5 * 0.5^xs
+sum(p)
+```
+
+#### Ejercicio 2: esperanza de una función de la variable
+
+Si $X \sim \text{Poisson}(2)$, calcula $E[X^2+3]$ sin hallar la distribución de $Y=X^2+3$.
+
+```{r}
+xs <- 0:100
+sum((xs^2 + 3) * dpois(xs, lambda = 2))   # teórico: 2 + 2^2 + 3 = 9
+mean(rpois(1e5, 2)^2 + 3)                 # simulación
+```
+
+#### Ejercicio 3: una densidad continua
+
+Sea $f(x)=2(1-x)$ en $(0,1)$. Comprueba que es densidad, calcula $E[X]$, $V[X]$ y la mediana, y simula la variable.
+
+Se tiene $F(x)=1-(1-x)^2$, así que $F^{-1}(u)=1-\sqrt{1-u}$.
+
+```{r}
+f <- function(x) ifelse(x > 0 & x < 1, 2 * (1 - x), 0)
+integrate(f, 0, 1)$value                                    # 1
+media <- integrate(function(x) x * f(x), 0, 1)$value        # 1/3
+varianza <- integrate(function(x) x^2 * f(x), 0, 1)$value - media^2   # 1/18
+c(media = media, varianza = varianza, mediana = 1 - sqrt(0.5))
+```
+
+```{r}
+#| label: fig-lab-va-densidad
+#| fig-cap: "Muestra simulada por inversión frente a la densidad teórica."
+u <- runif(1e5)
+x_sim <- 1 - sqrt(1 - u)
+c(mean(x_sim), var(x_sim))
+
+ggplot(tibble(x = x_sim), aes(x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = f, color = "red")
+```
+
+#### Ejercicio 4: momentos con la f.g.m.
+
+Para $X \sim \text{Poisson}(\lambda)$, $M(t)=\exp\{\lambda(e^t-1)\}$.
+
+```{r}
+M <- expression(exp(lambda * (exp(t) - 1)))
+dM  <- D(M, "t")
+d2M <- D(dM, "t")
+pars <- list(lambda = 3, t = 0)
+m1 <- eval(dM, pars)
+m2 <- eval(d2M, pars)
+c(media = m1, varianza = m2 - m1^2)   # ambas valen lambda
+```
+
+#### Ejercicio 5: cuantiles y supervivencia
+
+El tiempo de vida de un componente es $\text{Exp}(0{,}5)$ (en años).
+
+```{r}
+pexp(3, rate = 0.5, lower.tail = FALSE)   # P(X > 3)
+qexp(0.5, rate = 0.5)                     # mediana
+qexp(0.9, rate = 0.5)                     # tiempo superado por el 10 % de los componentes
+```
+
+### Ejercicios propuestos
+
+1. Sea $p(x)=c\,x$ para $x=1,2,3,4,5$. Calcula $c$, la función de distribución, $E[X]$ y $V[X]$.
+2. Calcula $E[1/(1+X)]$ para $X \sim \text{Poisson}(2)$ con una suma numérica y verifica con una simulación.
+3. Sea $f(x)=\tfrac{1}{2}e^{-|x|}$ para $x\in\mathbb{R}$ (Laplace). Comprueba que es densidad y calcula $V[X]$ con `integrate()`.
+4. Obtén con `D()` la media y la varianza de una $\text{Bernoulli}(p)$ a partir de $M(t)=1-p+pe^t$.
+5. Para la v.a. $f(x)=3x^2$ en $(0,1)$, calcula con `integrate()` el coeficiente de asimetría y simula 1e5 valores por inversión para comprobarlo.
+6. Una v.a. continua tiene $f(x)=0{,}5$ en $(0,0{,}5)$ y $f(x)=1{,}5$ en $(0{,}5,1)$. Comprueba que es densidad, halla $F$, la mediana y $P(0{,}4<X<0{,}7)$.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1: c = 1/15
+x <- 1:5; p <- x / 15
+sum(p); cumsum(p)
+m <- sum(x * p); c(media = m, varianza = sum(x^2 * p) - m^2)
+
+# 2
+xs <- 0:100
+sum(dpois(xs, 2) / (1 + xs))
+mean(1 / (1 + rpois(1e5, 2)))
+
+# 3: varianza 2
+fL <- function(x) 0.5 * exp(-abs(x))
+integrate(fL, -Inf, Inf)$value
+integrate(function(x) x^2 * fL(x), -Inf, Inf)$value
+
+# 4: media p, varianza p(1-p)
+M <- expression(1 - p + p * exp(t))
+d1 <- D(M, "t"); d2 <- D(d1, "t")
+pars <- list(p = 0.3, t = 0)
+c(media = eval(d1, pars), varianza = eval(d2, pars) - eval(d1, pars)^2)
+
+# 5: asimetría
+f <- function(x) ifelse(x > 0 & x < 1, 3 * x^2, 0)
+mu <- 3/4
+s <- sqrt(integrate(function(x) (x - mu)^2 * f(x), 0, 1)$value)
+integrate(function(x) (x - mu)^3 * f(x), 0, 1)$value / s^3
+y <- runif(1e5)^(1/3)
+mean((y - mean(y))^3) / sd(y)^3
+
+# 6: F(x) = 0.5x en (0, .5); 0.25 + 1.5(x - .5) en (.5, 1); mediana = 0.5 + (0.5-0.25)/1.5
+g <- function(x) ifelse(x > 0 & x < 0.5, 0.5, ifelse(x >= 0.5 & x < 1, 1.5, 0))
+integrate(g, 0, 1, subdivisions = 200)$value
+Fg <- function(x) integrate(g, 0, x, subdivisions = 200)$value
+0.5 + (0.5 - 0.25) / 1.5
+Fg(0.7) - Fg(0.4)
+```
+:::

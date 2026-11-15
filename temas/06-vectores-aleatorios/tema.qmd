@@ -1,0 +1,5 @@
+# Vectores aleatorios
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

@@ -55,6 +55,40 @@ ggplot(penguins, aes(x = flipper_length_mm, fill = species)) +
   labs(x = "Longitud de la aleta (mm)", y = "Frecuencia", fill = "Especie")
 ```
 
+#### Ejercicio 6: distribución empírica
+
+¿Qué proporción de pingüinos Gentoo pesa más de 5000 g?
+
+```{r}
+gentoo <- na.omit(penguins$body_mass_g[penguins$species == "Gentoo"])
+1 - ecdf(gentoo)(5000)
+```
+
+#### Ejercicio 7: efecto de un atípico
+
+Compara las medidas clásicas y robustas antes y después de añadir un valor atípico.
+
+```{r}
+limpio <- na.omit(penguins$flipper_length_mm)
+sucio <- c(limpio, 2000)
+rbind(limpio = c(media = mean(limpio), mediana = median(limpio), sd = sd(limpio), mad = mad(limpio)),
+      sucio  = c(media = mean(sucio),  mediana = median(sucio),  sd = sd(sucio),  mad = mad(sucio)))
+```
+
+#### Ejercicio 8: correlación y gráfico
+
+```{r}
+datos <- penguins |> drop_na()
+c(pearson = cor(datos$bill_length_mm, datos$bill_depth_mm),
+  spearman = cor(datos$bill_length_mm, datos$bill_depth_mm, method = "spearman"))
+
+datos |>
+  group_by(species) |>
+  summarise(r = cor(bill_length_mm, bill_depth_mm))
+```
+
+La relación global es negativa y dentro de cada especie es positiva: ignorar la especie cambia el signo.
+
 ### Ejercicios propuestos
 
 1. Calcula la tabla de frecuencias relativas de `island`.
@@ -62,6 +96,10 @@ ggplot(penguins, aes(x = flipper_length_mm, fill = species)) +
 3. Haz un diagrama de caja de `bill_length_mm` según `island`.
 4. Calcula el primer y el tercer cuartil de `bill_depth_mm`. ¿Hay valores atípicos según el criterio de 1,5 · IQR?
 5. Con `mtcars`, resume `mpg` según el número de cilindros (`cyl`).
+6. Calcula la asimetría y la curtosis de `bill_length_mm` por especie (usa las funciones de la teoría).
+7. Dibuja la función de distribución empírica de `mpg` en `mtcars` según el número de cilindros.
+8. Estandariza las variables numéricas de `mtcars` con `scale()` y comprueba que todas tienen media 0 y desviación típica 1.
+9. Con `anscombe`, calcula por grupo la pendiente de la recta de regresión (`lm`) y comprueba que es casi idéntica. ¿Por qué hay que dibujar los datos?
 
 {{< pagebreak >}}
 
@@ -94,5 +132,24 @@ sum(penguins$bill_depth_mm < limites[1] | penguins$bill_depth_mm > limites[2], n
 mtcars |>
   group_by(cyl) |>
   summarise(media = mean(mpg), mediana = median(mpg), desv_tipica = sd(mpg))
+
+# 6
+asimetria <- function(x) { x <- na.omit(x); mean((x - mean(x))^3) / mean((x - mean(x))^2)^1.5 }
+curtosis  <- function(x) { x <- na.omit(x); mean((x - mean(x))^4) / mean((x - mean(x))^2)^2 }
+penguins |> group_by(species) |>
+  summarise(asimetria = asimetria(bill_length_mm), curtosis = curtosis(bill_length_mm))
+
+# 7
+ggplot(mtcars, aes(mpg, color = factor(cyl))) + stat_ecdf()
+
+# 8
+z <- scale(mtcars)
+round(colMeans(z), 10)
+apply(z, 2, sd)
+
+# 9
+cuarteto <- anscombe |>
+  pivot_longer(everything(), names_to = c(".value", "grupo"), names_pattern = "(.)(.)")
+cuarteto |> group_by(grupo) |> summarise(pendiente = coef(lm(y ~ x))[2])
 ```
 :::

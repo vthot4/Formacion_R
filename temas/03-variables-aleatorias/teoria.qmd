@@ -1,0 +1,162 @@
+## Teoría
+
+### Objetivos
+
+- Definir una variable aleatoria y distinguir el caso discreto del continuo.
+- Manejar la función de probabilidad, la densidad y la función de distribución.
+- Calcular esperanza, varianza y momentos, y obtenerlos con la función generatriz de momentos.
+- Verificar resultados teóricos mediante integración numérica y simulación.
+
+```{r}
+library(tidyverse)
+```
+
+### Variable aleatoria
+
+Dado un espacio de probabilidad $(\Omega, \mathcal{A}, P)$, una **variable aleatoria** (v.a.) es una función medible $X:\Omega \to \mathbb{R}$. Codifica con números el resultado de un experimento aleatorio. Su comportamiento queda descrito por su **función de distribución**
+
+$$F(x) = P(X \le x), \qquad x \in \mathbb{R}.$$
+
+Toda $F$ cumple cuatro propiedades: es no decreciente, continua por la derecha, y verifica $F(-\infty)=0$ y $F(+\infty)=1$. Además, $P(a < X \le b) = F(b) - F(a)$.
+
+### Variables aleatorias discretas
+
+Una v.a. es **discreta** si toma valores en un conjunto finito o numerable, llamado **soporte**. Se describe con la **función de probabilidad**
+
+$$p(x) = P(X = x), \qquad 0 \le p(x) \le 1, \qquad \sum_x p(x) = 1.$$
+
+La función de distribución es $F(x) = \sum_{t \le x} p(t)$, una función escalonada cuyos saltos son los valores de $p$.
+
+```{r}
+x <- c(0, 1, 2, 3)
+p <- c(0.1, 0.3, 0.4, 0.2)
+sum(p)            # debe valer 1
+cumsum(p)         # F en cada punto del soporte
+```
+
+```{r}
+#| label: fig-va-escalonada
+#| fig-cap: "Función de distribución de una v.a. discreta con soporte {0, 1, 2, 3}."
+tibble(x = c(-1, x, 4), F = c(0, cumsum(p), 1)) |>
+  ggplot(aes(x, F)) +
+  geom_step(direction = "hv") +
+  geom_point(data = tibble(x = x, F = cumsum(p))) +
+  labs(x = "x", y = "F(x)")
+```
+
+### Esperanza, varianza y momentos
+
+La **esperanza** (media poblacional) de $X$ es
+
+$$E[X] = \sum_x x\,p(x), \qquad E[g(X)] = \sum_x g(x)\,p(x),$$
+
+siempre que la serie converja absolutamente. El **momento de orden $r$** es $E[X^r]$ y el **momento central** es $E[(X-\mu)^r]$. La **varianza** es el momento central de orden 2 y admite una fórmula de cálculo más cómoda:
+
+$$V[X] = E[(X-\mu)^2] = E[X^2] - E[X]^2.$$
+
+La **desviación típica** es $\sigma = \sqrt{V[X]}$. Por la linealidad de la esperanza, para constantes $a$ y $b$:
+
+$$E[aX+b] = aE[X]+b, \qquad V[aX+b] = a^2 V[X].$$
+
+```{r}
+mu <- sum(x * p)
+sigma2 <- sum(x^2 * p) - mu^2
+c(media = mu, varianza = sigma2, desv_tipica = sqrt(sigma2))
+```
+
+#### Comprobación por simulación
+
+La **ley de los grandes números** garantiza que la media de una muestra grande se aproxima a la esperanza. Podemos simular la v.a. con `sample()` indicando las probabilidades:
+
+```{r}
+set.seed(1)
+muestra <- sample(x, size = 1e5, replace = TRUE, prob = p)
+mean(muestra)
+mean(muestra^2) - mean(muestra)^2   # varianza con divisor n (poblacional)
+```
+
+### Variables aleatorias continuas
+
+Una v.a. es **continua** si existe una **función de densidad** $f \ge 0$ con $\int_{-\infty}^{\infty} f(x)\,dx = 1$ tal que
+
+$$P(a \le X \le b) = \int_a^b f(x)\,dx, \qquad F(x) = \int_{-\infty}^x f(t)\,dt, \qquad f(x) = F'(x).$$
+
+Dos consecuencias importantes: $P(X = x) = 0$ para todo $x$, y la densidad **no es una probabilidad**, por lo que puede superar 1.
+
+```{r}
+dunif(0.5, min = 0, max = 0.25)   # densidad 4 > 1
+dnorm(0, mean = 0, sd = 0.1)      # densidad cercana a 4
+```
+
+Ejemplo: $f(x)=3x^2$ en $(0,1)$ y 0 fuera.
+
+```{r}
+f <- function(x) ifelse(x > 0 & x < 1, 3 * x^2, 0)
+
+integrate(f, 0, 1)$value                                  # área total: 1
+integrate(function(x) x * f(x), 0, 1)$value               # E[X] = 3/4
+integrate(function(x) x^2 * f(x), 0, 1)$value - 0.75^2    # V[X] = 3/80
+```
+
+Aquí $F(x)=x^3$ en $(0,1)$, de modo que la **función cuantil** es $F^{-1}(u)=u^{1/3}$ y la mediana vale $0{,}5^{1/3}$.
+
+```{r}
+#| label: fig-va-densidad
+#| fig-cap: "Densidad y función de distribución de f(x) = 3x² en (0, 1)."
+tibble(x = seq(0, 1, length.out = 200)) |>
+  mutate(densidad = 3 * x^2, distribucion = x^3) |>
+  pivot_longer(-x, names_to = "funcion", values_to = "valor") |>
+  ggplot(aes(x, valor, color = funcion)) +
+  geom_line() +
+  labs(x = "x", y = NULL, color = NULL)
+```
+
+### Cuantiles y función de supervivencia
+
+El **cuantil de orden $\alpha$** es $q_\alpha = \inf\{x : F(x) \ge \alpha\}$; para una $F$ continua y estrictamente creciente es $F^{-1}(\alpha)$. La **función de supervivencia** es $S(x)=P(X>x)=1-F(x)$ y se usa mucho en fiabilidad.
+
+```{r}
+qexp(c(0.25, 0.5, 0.75), rate = 2)   # cuartiles de una exponencial
+pexp(1, rate = 2, lower.tail = FALSE) # S(1)
+```
+
+### Función generatriz de momentos
+
+La **función generatriz de momentos** (f.g.m.) es $M(t) = E[e^{tX}]$, definida para los $t$ en un entorno de 0 donde la esperanza es finita. Si existe, determina la distribución y permite obtener los momentos derivando:
+
+$$E[X^r] = M^{(r)}(0).$$
+
+R puede derivar expresiones simbólicamente con `D()`. Para una exponencial de parámetro $\lambda$, $M(t)=\lambda/(\lambda-t)$ con $t<\lambda$:
+
+```{r}
+M <- expression(lambda / (lambda - t))
+dM  <- D(M, "t")
+d2M <- D(dM, "t")
+
+pars <- list(lambda = 2, t = 0)
+m1 <- eval(dM, pars)    # E[X] = 1/lambda
+m2 <- eval(d2M, pars)   # E[X^2] = 2/lambda^2
+c(media = m1, varianza = m2 - m1^2)
+```
+
+### Asimetría y curtosis
+
+Los momentos centrales tipificados miden la forma de la distribución: el **coeficiente de asimetría** $\gamma_1 = E[(X-\mu)^3]/\sigma^3$ y la **curtosis** $\gamma_2 = E[(X-\mu)^4]/\sigma^4$ (vale 3 para la normal).
+
+```{r}
+momento_central <- function(f, r, lim = c(0, Inf), rate = 1) {
+  mu <- integrate(function(x) x * f(x, rate), lim[1], lim[2])$value
+  integrate(function(x) (x - mu)^r * f(x, rate), lim[1], lim[2])$value
+}
+
+sigma <- sqrt(momento_central(dexp, 2, rate = 1))
+momento_central(dexp, 3, rate = 1) / sigma^3   # asimetría de la exponencial: 2
+momento_central(dexp, 4, rate = 1) / sigma^4   # curtosis de la exponencial: 9
+```
+
+### Resumen
+
+- La función de distribución $F$ describe cualquier v.a.; $p$ (discreta) y $f$ (continua) la completan.
+- $E[X]$ y $V[X]=E[X^2]-E[X]^2$ resumen posición y dispersión; $E[g(X)]$ se calcula sin conocer la distribución de $g(X)$.
+- La f.g.m. genera los momentos: $E[X^r]=M^{(r)}(0)$.
+- `integrate()`, `D()` y la simulación permiten comprobar los cálculos teóricos.

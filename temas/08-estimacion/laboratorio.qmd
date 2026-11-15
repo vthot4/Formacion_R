@@ -1,0 +1,149 @@
+## Laboratorio
+
+### Objetivos
+
+Comparar estimadores por simulación, ajustar modelos por máxima verosimilitud y construir intervalos de confianza paramétricos y bootstrap.
+
+```{r}
+library(tidyverse)
+library(MASS, exclude = "select")
+set.seed(2026)
+```
+
+### Ejercicios guiados
+
+#### Ejercicio 1: sesgo y ECM de dos estimadores de la media
+
+Para $N(5,\,3)$ y $n=15$, compara la media y la mediana muestrales como estimadores de $\mu$.
+
+```{r}
+est <- replicate(20000, {
+  x <- rnorm(15, 5, 3)
+  c(media = mean(x), mediana = median(x))
+})
+tibble(estimador = rownames(est),
+       sesgo = rowMeans(est) - 5,
+       varianza = apply(est, 1, var))
+```
+
+Ambos son insesgados, pero la media tiene menor varianza (más eficiente).
+
+#### Ejercicio 2: EMV de una Poisson
+
+Los datos son los fallos diarios de una máquina durante 40 días.
+
+```{r}
+fallos <- rpois(40, 2.3)
+mean(fallos)                                         # EMV de lambda
+se <- sqrt(mean(fallos) / length(fallos))            # I_n(lambda) = n / lambda
+mean(fallos) + c(-1.96, 1.96) * se                   # IC de Wald
+```
+
+#### Ejercicio 3: EMV de una Weibull con `fitdistr`
+
+```{r}
+vidas <- rweibull(200, shape = 1.8, scale = 5)
+ajuste <- fitdistr(vidas, "weibull")
+ajuste
+```
+
+```{r}
+#| label: fig-lab-weibull
+#| fig-cap: "Histograma de los datos y densidad Weibull ajustada."
+ggplot(tibble(vidas), aes(vidas)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = dweibull,
+                args = list(shape = ajuste$estimate["shape"], scale = ajuste$estimate["scale"]),
+                color = "red")
+```
+
+#### Ejercicio 4: intervalo para una proporción
+
+En una muestra de 120 usuarios, 18 abandonan el servicio. Compara los tres intervalos al 95 %.
+
+```{r}
+rbind(
+  wald = { p <- 18 / 120; p + c(-1, 1) * 1.96 * sqrt(p * (1 - p) / 120) },
+  wilson = prop.test(18, 120, correct = FALSE)$conf.int,
+  exacto = binom.test(18, 120)$conf.int
+)
+```
+
+#### Ejercicio 5: bootstrap del coeficiente de correlación
+
+```{r}
+r_obs <- cor(mtcars$wt, mtcars$mpg)
+boot_r <- replicate(5000, {
+  i <- sample(nrow(mtcars), replace = TRUE)
+  cor(mtcars$wt[i], mtcars$mpg[i])
+})
+c(observada = r_obs, error_tipico_boot = sd(boot_r))
+quantile(boot_r, c(0.025, 0.975))
+```
+
+### Ejercicios propuestos
+
+1. Para $X\sim U(0,\theta)$ con $\theta=5$ y $n=30$, calcula por simulación el ECM del máximo, del doble de la media y del máximo corregido $\frac{n+1}{n}X_{(n)}$. ¿Cuál es mejor?
+2. Deriva a mano el EMV de $\lambda$ en una exponencial y compruébalo maximizando numéricamente la log-verosimilitud con `optimize()` sobre una muestra simulada.
+3. Con $n=25$ datos de $N(10,\,2)$, calcula el intervalo al 95 % para $\sigma$ y comprueba su cobertura con 5000 simulaciones.
+4. Estima por el método de los momentos y por máxima verosimilitud los parámetros de una $\text{Beta}(2,5)$ con 500 observaciones y compara los resultados.
+5. Con `penguins`, calcula un intervalo bootstrap del 95 % para la diferencia de medias de peso entre Adelie y Gentoo y compáralo con el de `t.test()`.
+6. Compara por simulación la cobertura de los intervalos de Wald, Wilson y exacto para $p=0{,}02$ y $n=100$.
+
+{{< pagebreak >}}
+
+### Soluciones
+
+::: {.callout-note collapse="true"}
+### Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+n <- 30; theta <- 5
+est <- replicate(20000, {
+  x <- runif(n, 0, theta)
+  c(maximo = max(x), doble_media = 2 * mean(x), corregido = (n + 1) / n * max(x))
+})
+rowMeans((est - theta)^2)
+
+# 2: EMV = 1 / media
+x <- rexp(100, 3)
+optimize(function(l) sum(dexp(x, l, log = TRUE)), c(0.01, 20), maximum = TRUE)$maximum
+1 / mean(x)
+
+# 3
+cub <- replicate(5000, {
+  x <- rnorm(25, 10, 2); s2 <- var(x)
+  ic <- sqrt(c(24 * s2 / qchisq(0.975, 24), 24 * s2 / qchisq(0.025, 24)))
+  ic[1] <= 2 & 2 <= ic[2]
+})
+mean(cub)
+
+# 4: momentos: a = m*(m(1-m)/v - 1), b = (1-m)*(m(1-m)/v - 1)
+x <- rbeta(500, 2, 5)
+m <- mean(x); v <- var(x); k <- m * (1 - m) / v - 1
+c(a = m * k, b = (1 - m) * k)
+fitdistr(x, "beta", start = list(shape1 = 1, shape2 = 1))
+
+# 5
+library(palmerpenguins)
+a <- na.omit(penguins$body_mass_g[penguins$species == "Adelie"])
+g <- na.omit(penguins$body_mass_g[penguins$species == "Gentoo"])
+d <- replicate(5000, mean(sample(g, replace = TRUE)) - mean(sample(a, replace = TRUE)))
+quantile(d, c(0.025, 0.975))
+t.test(g, a)$conf.int
+
+# 6
+cob <- function(p, n, nsim = 4000) {
+  x <- rbinom(nsim, n, p); ph <- x / n
+  w <- cbind(ph - 1.96 * sqrt(ph * (1 - ph) / n), ph + 1.96 * sqrt(ph * (1 - ph) / n))
+  ws <- t(sapply(x, function(xx) prop.test(xx, n, correct = FALSE)$conf.int))
+  ex <- t(sapply(x, function(xx) binom.test(xx, n)$conf.int))
+  c(wald = mean(w[, 1] <= p & p <= w[, 2]),
+    wilson = mean(ws[, 1] <= p & p <= ws[, 2]),
+    exacto = mean(ex[, 1] <= p & p <= ex[, 2]))
+}
+round(cob(0.02, 100), 3)
+```
+:::

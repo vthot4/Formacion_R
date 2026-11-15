@@ -1,0 +1,188 @@
+## Teoría
+
+### Objetivos
+
+- Describir un vector aleatorio con su distribución conjunta, marginales y condicionadas.
+- Decidir si dos variables son independientes y distinguir independencia de incorrelación.
+- Calcular covarianzas y correlaciones, y manejar la matriz de covarianzas.
+- Simular y analizar la normal multivariante.
+
+```{r}
+library(tidyverse)
+library(MASS, exclude = "select")
+set.seed(2026)
+```
+
+### Vectores aleatorios discretos
+
+Un vector $(X,Y)$ es discreto si toma un conjunto numerable de valores. Su **función de probabilidad conjunta** es $p(x,y)=P(X=x,\,Y=y)$, con $p\ge 0$ y $\sum_{x,y}p(x,y)=1$. La guardamos como una matriz:
+
+```{r}
+p <- matrix(c(0.10, 0.05, 0.05,
+              0.10, 0.20, 0.10,
+              0.05, 0.05, 0.30),
+            nrow = 3, byrow = TRUE,
+            dimnames = list(X = 1:3, Y = 0:2))
+p
+sum(p)
+```
+
+#### Marginales
+
+Las distribuciones **marginales** se obtienen sumando sobre la otra variable: $p_X(x)=\sum_y p(x,y)$ y $p_Y(y)=\sum_x p(x,y)$.
+
+```{r}
+pX <- rowSums(p); pY <- colSums(p)
+pX; pY
+```
+
+#### Condicionadas
+
+$$p(y\mid x)=\frac{p(x,y)}{p_X(x)},\qquad p_X(x)>0.$$
+
+```{r}
+p[2, ] / pX[2]      # distribución de Y dado X = 2
+```
+
+#### Independencia
+
+$X$ e $Y$ son **independientes** si $p(x,y)=p_X(x)\,p_Y(y)$ para todo par $(x,y)$.
+
+```{r}
+independiente <- outer(pX, pY)
+all.equal(unname(p), unname(independiente))
+round(p - independiente, 3)
+```
+
+### Esperanza, covarianza y correlación
+
+Para cualquier función $g$, $E[g(X,Y)]=\sum_{x,y}g(x,y)\,p(x,y)$. La **covarianza** y la **correlación** miden la relación lineal:
+
+$$\operatorname{Cov}(X,Y)=E[XY]-E[X]E[Y],\qquad \rho=\frac{\operatorname{Cov}(X,Y)}{\sigma_X\sigma_Y}\in[-1,1].$$
+
+```{r}
+x <- 1:3; y <- 0:2
+EX <- sum(x * pX); EY <- sum(y * pY)
+EXY <- sum(outer(x, y) * p)
+cov_xy <- EXY - EX * EY
+sdX <- sqrt(sum(x^2 * pX) - EX^2); sdY <- sqrt(sum(y^2 * pY) - EY^2)
+c(covarianza = cov_xy, correlacion = cov_xy / (sdX * sdY))
+```
+
+::: {.callout-important}
+Si $X$ e $Y$ son independientes, entonces $\operatorname{Cov}(X,Y)=0$. **El recíproco es falso**: la incorrelación solo descarta dependencia lineal.
+:::
+
+Ejemplo clásico: $X$ uniforme en $\{-1,0,1\}$ e $Y=X^2$. $Y$ depende de $X$ por completo, pero $E[XY]=E[X^3]=0=E[X]E[Y]$.
+
+```{r}
+x <- c(-1, 0, 1); px <- rep(1/3, 3)
+y <- x^2
+EXY <- sum(x * y * px); EX <- sum(x * px); EY <- sum(y * px)
+EXY - EX * EY          # covarianza nula, pero Y = X^2
+```
+
+### Vectores aleatorios continuos
+
+La **densidad conjunta** $f(x,y)\ge 0$ cumple $\iint f=1$ y $P((X,Y)\in A)=\iint_A f$. Las marginales se obtienen integrando:
+
+$$f_X(x)=\int f(x,y)\,dy,\qquad f(y\mid x)=\frac{f(x,y)}{f_X(x)}.$$
+
+Ejemplo: $f(x,y)=x+y$ en el cuadrado $(0,1)^2$. Definimos una pequeña función para integrales dobles:
+
+```{r}
+doble_integral <- function(g, ax = 0, bx = 1, ay = 0, by = 1) {
+  integrate(Vectorize(function(x) integrate(function(y) g(x, y), ay, by)$value),
+            ax, bx)$value
+}
+
+f <- function(x, y) x + y
+doble_integral(f)                                          # 1
+EX  <- doble_integral(function(x, y) x * f(x, y))          # 7/12
+EXY <- doble_integral(function(x, y) x * y * f(x, y))      # 1/3
+VX  <- doble_integral(function(x, y) x^2 * f(x, y)) - EX^2 # 11/144
+c(covarianza = EXY - EX^2, correlacion = (EXY - EX^2) / VX)
+```
+
+Aquí $f_X(x)=x+\tfrac12$ y la correlación es $-1/11$: la dependencia es débil y negativa. Como $f(x,y)\neq f_X(x)f_Y(y)$, no son independientes.
+
+### Matriz de covarianzas
+
+Para un vector $\mathbf{X}=(X_1,\dots,X_p)^\top$ con media $\boldsymbol\mu$, la **matriz de covarianzas** es $\Sigma=E[(\mathbf{X}-\boldsymbol\mu)(\mathbf{X}-\boldsymbol\mu)^\top]$. Es simétrica y semidefinida positiva, y para cualquier vector $\mathbf{a}$:
+
+$$V[\mathbf{a}^\top\mathbf{X}]=\mathbf{a}^\top\Sigma\,\mathbf{a}.$$
+
+```{r}
+#| label: fig-cor-pinguinos
+#| fig-cap: "Matriz de correlaciones de las medidas de los pingüinos."
+library(palmerpenguins)
+medidas <- penguins |> drop_na() |> dplyr::select(where(is.numeric), -year)
+S <- cov(medidas)
+R <- cor(medidas)
+round(R, 2)
+
+as_tibble(R, rownames = "v1") |>
+  pivot_longer(-v1, names_to = "v2", values_to = "r") |>
+  ggplot(aes(v1, v2, fill = r)) + geom_tile() +
+  geom_text(aes(label = round(r, 2))) +
+  scale_fill_gradient2(low = "firebrick", mid = "white", high = "steelblue", limits = c(-1, 1)) +
+  labs(x = NULL, y = NULL)
+```
+
+### Normal multivariante
+
+Un vector $\mathbf{X}\sim N_p(\boldsymbol\mu,\Sigma)$ tiene densidad
+
+$$f(\mathbf{x})=\frac{1}{(2\pi)^{p/2}|\Sigma|^{1/2}}\exp\!\Big\{-\tfrac12(\mathbf{x}-\boldsymbol\mu)^\top\Sigma^{-1}(\mathbf{x}-\boldsymbol\mu)\Big\}.$$
+
+Propiedades clave: las combinaciones lineales son normales ($\mathbf{a}^\top\mathbf{X}\sim N(\mathbf{a}^\top\boldsymbol\mu,\ \mathbf{a}^\top\Sigma\mathbf{a})$), las marginales y las condicionadas también, y **la incorrelación implica independencia**.
+
+```{r}
+#| label: fig-mvn
+#| fig-cap: "Muestra de una normal bivariante con correlación 0,8 y elipse de contorno al 95 %."
+mu <- c(1, 2)
+sd1 <- 1; sd2 <- 2; rho <- 0.8
+Sigma <- matrix(c(sd1^2, rho * sd1 * sd2, rho * sd1 * sd2, sd2^2), 2)
+
+muestra <- mvrnorm(5000, mu, Sigma) |> as_tibble(.name_repair = ~ c("x1", "x2"))
+colMeans(muestra); cov(muestra)
+
+ggplot(muestra, aes(x1, x2)) +
+  geom_point(alpha = 0.2) +
+  stat_ellipse(level = 0.95, color = "red")
+```
+
+#### Distribución condicionada
+
+Para el caso bivariante, $X_2\mid X_1=x_1\sim N\!\Big(\mu_2+\rho\frac{\sigma_2}{\sigma_1}(x_1-\mu_1),\ \sigma_2^2(1-\rho^2)\Big)$. Lo comprobamos con las observaciones cuyo $X_1$ está cerca de 2:
+
+```{r}
+cerca <- muestra |> filter(abs(x1 - 2) < 0.05)
+c(media_sim = mean(cerca$x2), media_teorica = mu[2] + rho * sd2 / sd1 * (2 - mu[1]))
+c(sd_sim = sd(cerca$x2), sd_teorica = sd2 * sqrt(1 - rho^2))
+```
+
+#### Distancia de Mahalanobis
+
+$D^2=(\mathbf{x}-\boldsymbol\mu)^\top\Sigma^{-1}(\mathbf{x}-\boldsymbol\mu)$ sigue una $\chi^2_p$ si el vector es normal $p$-variante. Sirve para detectar atípicos multivariantes.
+
+```{r}
+D2 <- mahalanobis(as.matrix(muestra), center = mu, cov = Sigma)
+mean(D2 <= qchisq(0.95, df = 2))      # debe ser cercano a 0,95
+```
+
+#### Descomposición espectral
+
+Los autovectores de $\Sigma$ dan los ejes principales de la elipse y los autovalores, la varianza a lo largo de ellos: es la base del análisis de componentes principales.
+
+```{r}
+eigen(Sigma)
+prcomp(muestra)$sdev^2        # varianzas muestrales de las componentes
+```
+
+### Resumen
+
+- Marginales: se suma o integra sobre la otra variable; condicionadas: conjunta entre marginal.
+- Independencia $\Rightarrow$ incorrelación, pero no al revés (salvo en la normal multivariante).
+- $V[\mathbf{a}^\top\mathbf{X}]=\mathbf{a}^\top\Sigma\mathbf{a}$ liga la covarianza con cualquier combinación lineal.
+- `MASS::mvrnorm()` simula la normal multivariante; `mahalanobis()` mide distancias ajustadas por $\Sigma$.

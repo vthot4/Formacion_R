@@ -1,0 +1,190 @@
+## Teoría
+
+### Objetivos
+
+- Calcular esperanza y varianza de sumas y combinaciones lineales de variables aleatorias.
+- Obtener la distribución de sumas de variables independientes, de mínimos y de máximos.
+- Aplicar las desigualdades de Markov y Chebyshev.
+- Enunciar y comprobar la ley de los grandes números y el teorema central del límite, y usarlos en el método de Monte Carlo.
+
+```{r}
+library(tidyverse)
+library(MASS, exclude = "select")
+set.seed(2026)
+```
+
+### Esperanza y varianza de combinaciones lineales
+
+La esperanza es lineal **siempre**, sean o no independientes las variables:
+
+$$E\Big[\sum_i a_iX_i\Big]=\sum_i a_iE[X_i].$$
+
+La varianza incorpora las covarianzas:
+
+$$V\Big[\sum_i a_iX_i\Big]=\sum_i a_i^2V[X_i]+2\sum_{i<j}a_ia_j\operatorname{Cov}(X_i,X_j).$$
+
+Si las variables son independientes (o simplemente incorreladas), los términos cruzados desaparecen. Lo comprobamos con dos normales correlacionadas:
+
+```{r}
+Sigma <- matrix(c(1, 0.6, 0.6, 2), 2)
+X <- mvrnorm(1e5, c(0, 0), Sigma)
+a <- 2; b <- 3
+
+var(a * X[, 1] + b * X[, 2])                 # simulada
+a^2 * 1 + b^2 * 2 + 2 * a * b * 0.6          # teórica
+```
+
+### Distribución de una suma de variables independientes
+
+#### Caso discreto: convolución
+
+$P(X+Y=s)=\sum_x p_X(x)\,p_Y(s-x)$. En R se calcula con `convolve()` invirtiendo uno de los vectores:
+
+```{r}
+dado <- rep(1/6, 6)
+suma <- convolve(dado, rev(dado), type = "open")
+names(suma) <- 2:12
+round(suma, 4)
+```
+
+#### Familias cerradas bajo suma
+
+Para variables **independientes**:
+
+| Si… | …entonces la suma es |
+|-----|----------------------|
+| $X_i\sim\text{Bin}(n_i,p)$ | $\text{Bin}(\sum n_i,\,p)$ |
+| $X_i\sim\text{Poisson}(\lambda_i)$ | $\text{Poisson}(\sum\lambda_i)$ |
+| $X_i\sim N(\mu_i,\sigma_i)$ | $N\big(\sum\mu_i,\ \sqrt{\sum\sigma_i^2}\big)$ |
+| $X_i\sim\text{Gamma}(\alpha_i,\beta)$ | $\text{Gamma}(\sum\alpha_i,\,\beta)$ |
+| $X_i\sim\chi^2_{n_i}$ | $\chi^2_{\sum n_i}$ |
+
+```{r}
+mean(rpois(1e5, 2) + rpois(1e5, 3) == 5)
+dpois(5, lambda = 5)
+```
+
+### Mínimo y máximo
+
+Si $X_1,\dots,X_n$ son independientes e idénticamente distribuidas con función de distribución $F$:
+
+$$F_{\max}(x)=F(x)^n,\qquad F_{\min}(x)=1-\big(1-F(x)\big)^n.$$
+
+- El mínimo de exponenciales independientes de tasas $\lambda_i$ es exponencial de tasa $\sum\lambda_i$.
+- El máximo de $n$ uniformes $U(0,1)$ sigue una $\text{Beta}(n,1)$.
+
+```{r}
+m <- pmin(rexp(1e5, rate = 1), rexp(1e5, rate = 2))
+c(media_sim = mean(m), media_teorica = 1 / (1 + 2))
+
+mx <- replicate(1e5, max(runif(5)))
+c(media_sim = mean(mx), media_teorica = 5 / 6)
+ks.test(mx, "pbeta", shape1 = 5, shape2 = 1)$p.value
+```
+
+### Desigualdades de probabilidad
+
+**Markov.** Si $X\ge 0$ y $a>0$: $P(X\ge a)\le E[X]/a$.
+
+**Chebyshev.** Si $X$ tiene media $\mu$ y varianza $\sigma^2$ finitas: $P(|X-\mu|\ge k\sigma)\le 1/k^2$.
+
+Son cotas muy generales y, por ello, poco ajustadas. Para una $\text{Exp}(1)$ ($\mu=\sigma=1$) la probabilidad exacta es $P(|X-1|\ge k)=e^{-(1+k)}$ para $k\ge 1$:
+
+```{r}
+tibble(k = 1:5, exacta = exp(-(1 + k)), cota_chebyshev = 1 / k^2)
+```
+
+### Ley de los grandes números
+
+Si $X_1,X_2,\dots$ son i.i.d. con media $\mu$, la media muestral $\bar X_n$ converge a $\mu$ (en probabilidad y casi seguro).
+
+```{r}
+#| label: fig-lgn
+#| fig-cap: "Cinco trayectorias de la media muestral de exponenciales de media 1."
+n <- 2000
+trayectorias <- map_dfr(1:5, function(i) {
+  x <- rexp(n)
+  tibble(trayectoria = factor(i), n = 1:n, media = cumsum(x) / (1:n))
+})
+ggplot(trayectorias, aes(n, media, color = trayectoria)) +
+  geom_line() +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  labs(x = "n", y = "Media muestral", color = NULL)
+```
+
+### Teorema central del límite
+
+Si $X_1,\dots,X_n$ son i.i.d. con media $\mu$ y varianza $\sigma^2<\infty$,
+
+$$\sqrt{n}\,\frac{\bar X_n-\mu}{\sigma}\ \xrightarrow{d}\ N(0,1).$$
+
+La convergencia es más rápida cuanto más simétrica sea la distribución original.
+
+```{r}
+#| label: fig-tcl
+#| fig-cap: "Media tipificada de n exponenciales: la asimetría se corrige al crecer n."
+tcl <- expand_grid(n = c(1, 2, 5, 30), rep = 1:20000) |>
+  mutate(z = map_dbl(n, ~ sqrt(.x) * (mean(rexp(.x)) - 1) / 1))
+
+ggplot(tcl, aes(z)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 50,
+                 fill = "steelblue", color = "white") +
+  stat_function(fun = dnorm, color = "red") +
+  coord_cartesian(xlim = c(-4, 4)) +
+  facet_wrap(~n, labeller = label_both)
+```
+
+#### Aproximación normal de la binomial
+
+$\text{Bin}(n,p)\approx N\big(np,\sqrt{np(1-p)}\big)$. La **corrección por continuidad** (sumar 0,5) mejora la aproximación:
+
+```{r}
+n <- 40; p <- 0.3
+mu <- n * p; s <- sqrt(n * p * (1 - p))
+c(exacta = pbinom(10, n, p),
+  sin_correccion = pnorm(10, mu, s),
+  con_correccion = pnorm(10.5, mu, s))
+```
+
+#### Método delta
+
+Si $\sqrt{n}(\bar X_n-\mu)/\sigma\to N(0,1)$ y $g$ es derivable con $g'(\mu)\neq 0$, entonces $g(\bar X_n)$ es aproximadamente $N\big(g(\mu),\ |g'(\mu)|\sigma/\sqrt{n}\big)$.
+
+Para $X\sim\text{Exp}(1)$ y $g(x)=\ln x$ ($\mu=\sigma=1$, $g'(1)=1$), la desviación típica de $\ln\bar X_n$ es $\approx 1/\sqrt{n}$:
+
+```{r}
+n <- 100
+sd(replicate(20000, log(mean(rexp(n)))))
+1 / sqrt(n)
+```
+
+### Método de Monte Carlo
+
+Para estimar $\theta=E[h(X)]$ se simulan $X_1,\dots,X_N$ y se usa $\hat\theta=\frac1N\sum h(X_i)$. Por la ley de los grandes números converge a $\theta$ y, por el TCL, su error típico es $\sigma_h/\sqrt{N}$, **independiente de la dimensión del problema**.
+
+**Ejemplo 1.** Estimar $\pi$: la probabilidad de que un punto uniforme del cuadrado unidad caiga en el cuarto de círculo es $\pi/4$.
+
+```{r}
+N <- 1e6
+u <- runif(N); v <- runif(N)
+pi_hat <- 4 * mean(u^2 + v^2 <= 1)
+c(estimacion = pi_hat, error_tipico = 4 * sqrt(pi_hat / 4 * (1 - pi_hat / 4) / N))
+```
+
+**Ejemplo 2.** Calcular $\int_0^1 e^{-x^2}dx=E[e^{-U^2}]$ con $U\sim U(0,1)$ y un intervalo de confianza:
+
+```{r}
+h <- exp(-runif(N)^2)
+est <- mean(h); ee <- sd(h) / sqrt(N)
+c(estimacion = est, ic_inf = est - 1.96 * ee, ic_sup = est + 1.96 * ee)
+integrate(function(x) exp(-x^2), 0, 1)$value
+```
+
+El error decrece como $1/\sqrt{N}$: para ganar una cifra decimal hay que multiplicar $N$ por 100.
+
+### Resumen
+
+- $E$ es lineal siempre; $V$ de una suma necesita las covarianzas.
+- Sumas independientes: convolución, o familias cerradas bajo suma. Máximo y mínimo: $F^n$ y $1-(1-F)^n$.
+- Markov y Chebyshev dan cotas generales; LGN: $\bar X_n\to\mu$; TCL: $\bar X_n\approx N(\mu,\sigma/\sqrt n)$.
+- Monte Carlo: el error es $O(1/\sqrt N)$ y el TCL permite cuantificarlo.
