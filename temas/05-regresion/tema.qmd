@@ -1,0 +1,5 @@
+# Correlación y regresión lineal
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

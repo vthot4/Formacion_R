@@ -1,6 +1,6 @@
-# Inferencia estadística: laboratorio
+## Laboratorio
 
-## Objetivos
+### Objetivos
 
 Construir intervalos de confianza y realizar contrastes de hipótesis con `t.test()`, `prop.test()` y `chisq.test()`.
 
@@ -10,9 +10,9 @@ library(palmerpenguins)
 set.seed(99)
 ```
 
-## Ejercicios guiados
+### Ejercicios guiados
 
-### Ejercicio 1: interpretar un intervalo de confianza
+#### Ejercicio 1: interpretar un intervalo de confianza
 
 Intervalo de confianza al 95 % y al 99 % para la longitud media del pico.
 
@@ -24,7 +24,7 @@ t.test(pico, conf.level = 0.99)$conf.int
 
 ¿Cuál es más ancho? ¿Por qué?
 
-### Ejercicio 2: qué significa el 95 %
+#### Ejercicio 2: qué significa el 95 %
 
 Simulamos 100 muestras de tamaño 30 de una población con media 50 y vemos cuántos intervalos contienen la media real.
 
@@ -37,7 +37,7 @@ contiene <- replicate(100, {
 mean(contiene)
 ```
 
-### Ejercicio 3: dos grupos
+#### Ejercicio 3: dos grupos
 
 ¿Hay diferencia en la longitud de la aleta entre machos y hembras?
 
@@ -46,7 +46,7 @@ con_sexo <- penguins |> filter(!is.na(sex))
 t.test(flipper_length_mm ~ sex, data = con_sexo)
 ```
 
-### Ejercicio 4: chi-cuadrado
+#### Ejercicio 4: chi-cuadrado
 
 ¿Está el sexo asociado a la especie?
 
@@ -56,7 +56,7 @@ tabla
 chisq.test(tabla)
 ```
 
-### Ejercicio 5: datos pareados
+#### Ejercicio 5: datos pareados
 
 Con `sleep` (horas extra de sueño de 10 pacientes con dos fármacos):
 
@@ -65,7 +65,7 @@ sleep_ancho <- reshape(sleep, idvar = "ID", timevar = "group", direction = "wide
 t.test(sleep_ancho$extra.1, sleep_ancho$extra.2, paired = TRUE)
 ```
 
-## Ejercicios propuestos
+### Ejercicios propuestos
 
 1. Calcula un intervalo de confianza al 90 % para la media de `body_mass_g` de los pingüinos Gentoo.
 2. Contrasta si la longitud media del pico de los Adelie es distinta de 38 mm.
@@ -75,10 +75,10 @@ t.test(sleep_ancho$extra.1, sleep_ancho$extra.2, paired = TRUE)
 
 {{< pagebreak >}}
 
-## Soluciones
+### Soluciones
 
 ::: {.callout-note collapse="true"}
-## Soluciones de los ejercicios propuestos
+### Soluciones de los ejercicios propuestos
 
 ```{r}
 # 1

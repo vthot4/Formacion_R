@@ -1,6 +1,6 @@
-# Probabilidad y distribuciones: laboratorio
+## Laboratorio
 
-## Objetivos
+### Objetivos
 
 Calcular probabilidades con las distribuciones binomial y normal y comprobar resultados por simulación.
 
@@ -9,9 +9,9 @@ library(tidyverse)
 set.seed(2024)
 ```
 
-## Ejercicios guiados
+### Ejercicios guiados
 
-### Ejercicio 1: lanzar monedas
+#### Ejercicio 1: lanzar monedas
 
 Simula 10000 lanzamientos de dos monedas y estima la probabilidad de obtener dos caras.
 
@@ -23,7 +23,7 @@ mean(moneda1 == "C" & moneda2 == "C")
 
 El valor teórico es 0,25.
 
-### Ejercicio 2: binomial
+#### Ejercicio 2: binomial
 
 Un test tiene 10 preguntas con 4 opciones cada una. Si se responde al azar, ¿cuál es la probabilidad de acertar exactamente 5? ¿Y de aprobar (al menos 5)?
 
@@ -39,7 +39,7 @@ aciertos <- rbinom(10000, size = 10, prob = 0.25)
 mean(aciertos >= 5)
 ```
 
-### Ejercicio 3: normal
+#### Ejercicio 3: normal
 
 El tiempo de espera de un autobús sigue una $N(12, 3)$ minutos. ¿Qué probabilidad hay de esperar más de 15 minutos? ¿Y entre 9 y 15?
 
@@ -48,7 +48,7 @@ El tiempo de espera de un autobús sigue una $N(12, 3)$ minutos. ¿Qué probabil
 pnorm(15, 12, 3) - pnorm(9, 12, 3)
 ```
 
-### Ejercicio 4: percentiles
+#### Ejercicio 4: percentiles
 
 ¿Qué tiempo no se supera en el 90 % de los casos?
 
@@ -56,7 +56,7 @@ pnorm(15, 12, 3) - pnorm(9, 12, 3)
 qnorm(0.90, mean = 12, sd = 3)
 ```
 
-### Ejercicio 5: teorema central del límite
+#### Ejercicio 5: teorema central del límite
 
 Simula 1000 medias de 40 valores de una uniforme en $[0, 1]$ y compara su desviación típica con la teórica.
 
@@ -71,7 +71,7 @@ ggplot(data.frame(medias), aes(medias)) +
   geom_histogram(bins = 25, fill = "steelblue", color = "white")
 ```
 
-## Ejercicios propuestos
+### Ejercicios propuestos
 
 1. Simula 10000 lanzamientos de dos dados y estima la probabilidad de que sumen 7. Compárala con el valor teórico.
 2. Si $X \sim B(20, 0{,}3)$, calcula $P(X = 6)$, $P(X \le 4)$ y $P(X \ge 8)$.
@@ -81,10 +81,10 @@ ggplot(data.frame(medias), aes(medias)) +
 
 {{< pagebreak >}}
 
-## Soluciones
+### Soluciones
 
 ::: {.callout-note collapse="true"}
-## Soluciones de los ejercicios propuestos
+### Soluciones de los ejercicios propuestos
 
 ```{r}
 # 1

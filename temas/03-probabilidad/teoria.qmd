@@ -1,6 +1,6 @@
-# Probabilidad y distribuciones: teoría
+## Teoría
 
-## Objetivos
+### Objetivos
 
 - Calcular probabilidades simples mediante simulación.
 - Usar las funciones `d`, `p`, `q` y `r` de R.
@@ -11,7 +11,7 @@
 library(tidyverse)
 ```
 
-## Probabilidad y simulación
+### Probabilidad y simulación
 
 La probabilidad de un suceso se puede aproximar repitiendo muchas veces un experimento. Fijamos la semilla con `set.seed()` para que los resultados sean reproducibles.
 
@@ -23,7 +23,7 @@ mean(dado == 6)    # frecuencia relativa de sacar un 6
 
 El valor teórico es $1/6 \approx 0{,}167$.
 
-### Ley de los grandes números
+#### Ley de los grandes números
 
 La frecuencia relativa se acerca a la probabilidad teórica al aumentar el número de repeticiones.
 
@@ -39,7 +39,7 @@ tibble(n = n, frecuencia = cumsum(es_seis) / n) |>
   labs(x = "Lanzamientos", y = "Frecuencia relativa")
 ```
 
-## Funciones de R para distribuciones
+### Funciones de R para distribuciones
 
 Para cada distribución hay cuatro funciones, con un prefijo:
 
@@ -50,7 +50,7 @@ Para cada distribución hay cuatro funciones, con un prefijo:
 | `q` | cuantil (inversa de `p`) | `qnorm()` |
 | `r` | números aleatorios | `rnorm()` |
 
-## Distribución binomial
+### Distribución binomial
 
 Cuenta los éxitos en $n$ ensayos independientes con probabilidad de éxito $p$. Si $X \sim B(10, 0{,}5)$:
 
@@ -72,7 +72,7 @@ tibble(x = 0:10, p = dbinom(x, 10, 0.5)) |>
 
 La media es $np$ y la varianza $np(1-p)$.
 
-## Distribución normal
+### Distribución normal
 
 Si $X \sim N(\mu, \sigma)$, con $\mu = 170$ y $\sigma = 10$ (estaturas en cm):
 
@@ -90,7 +90,7 @@ ggplot(data.frame(x = c(-4, 4)), aes(x)) +
   labs(x = "z", y = "Densidad")
 ```
 
-### Regla 68-95-99,7
+#### Regla 68-95-99,7
 
 ```{r}
 pnorm(1) - pnorm(-1)
@@ -98,7 +98,7 @@ pnorm(2) - pnorm(-2)
 pnorm(3) - pnorm(-3)
 ```
 
-### Tipificación
+#### Tipificación
 
 $$Z = \frac{X - \mu}{\sigma}$$
 
@@ -108,7 +108,7 @@ z
 pnorm(z)    # coincide con pnorm(180, 170, 10)
 ```
 
-## Teorema central del límite
+### Teorema central del límite
 
 La media de muestras grandes sigue aproximadamente una normal, aunque la variable original no lo sea. Simulamos 2000 medias de 30 observaciones de una exponencial, que es muy asimétrica:
 
@@ -125,7 +125,7 @@ ggplot(data.frame(medias), aes(medias)) +
   labs(x = "Media muestral", y = "Densidad")
 ```
 
-## Resumen
+### Resumen
 
 - `d`, `p`, `q`, `r` + nombre de la distribución: `binom`, `norm`, `unif`, `exp`, `t`, `chisq`...
 - `set.seed()` hace reproducible una simulación.

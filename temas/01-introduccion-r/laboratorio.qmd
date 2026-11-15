@@ -1,6 +1,6 @@
-# Introducción a R: laboratorio
+## Laboratorio
 
-## Objetivos
+### Objetivos
 
 Practicar la creación de objetos y vectores, la exploración de un `data.frame` y un primer gráfico con `ggplot2`.
 
@@ -9,9 +9,9 @@ library(tidyverse)
 library(palmerpenguins)
 ```
 
-## Ejercicios guiados
+### Ejercicios guiados
 
-### Ejercicio 1: vectores
+#### Ejercicio 1: vectores
 
 Crea un vector con las notas `6.5, 8, 5.5, 9, 7` y calcula su media y su máximo.
 
@@ -21,7 +21,7 @@ mean(notas)
 max(notas)
 ```
 
-### Ejercicio 2: explorar un data frame
+#### Ejercicio 2: explorar un data frame
 
 El conjunto `penguins` contiene medidas de pingüinos. Mira sus dimensiones y sus primeras filas.
 
@@ -30,7 +30,7 @@ dim(penguins)
 head(penguins)
 ```
 
-### Ejercicio 3: un resumen por grupo
+#### Ejercicio 3: un resumen por grupo
 
 ```{r}
 penguins |>
@@ -38,7 +38,7 @@ penguins |>
   summarise(peso_medio = mean(body_mass_g, na.rm = TRUE))
 ```
 
-### Ejercicio 4: un gráfico
+#### Ejercicio 4: un gráfico
 
 ```{r}
 #| label: fig-pinguinos
@@ -48,7 +48,7 @@ ggplot(penguins, aes(x = species, y = body_mass_g)) +
   labs(x = "Especie", y = "Peso (g)")
 ```
 
-## Ejercicios propuestos
+### Ejercicios propuestos
 
 1. Crea un vector con las edades de cinco personas y calcula su mediana.
 2. ¿Cuántos pingüinos hay de cada isla? Usa `table()`.
@@ -57,10 +57,10 @@ ggplot(penguins, aes(x = species, y = body_mass_g)) +
 
 {{< pagebreak >}}
 
-## Soluciones
+### Soluciones
 
 ::: {.callout-note collapse="true"}
-## Soluciones de los ejercicios propuestos
+### Soluciones de los ejercicios propuestos
 
 ```{r}
 # 1

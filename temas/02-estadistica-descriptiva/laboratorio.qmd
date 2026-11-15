@@ -1,6 +1,6 @@
-# Estadística descriptiva: laboratorio
+## Laboratorio
 
-## Objetivos
+### Objetivos
 
 Resumir y representar variables de un conjunto de datos real, por separado y por grupos.
 
@@ -9,9 +9,9 @@ library(tidyverse)
 library(palmerpenguins)
 ```
 
-## Ejercicios guiados
+### Ejercicios guiados
 
-### Ejercicio 1: tipos de variables
+#### Ejercicio 1: tipos de variables
 
 Identifica el tipo de cada variable de `penguins`.
 
@@ -19,7 +19,7 @@ Identifica el tipo de cada variable de `penguins`.
 glimpse(penguins)
 ```
 
-### Ejercicio 2: datos ausentes
+#### Ejercicio 2: datos ausentes
 
 Cuenta cuántos valores ausentes tiene cada columna.
 
@@ -27,7 +27,7 @@ Cuenta cuántos valores ausentes tiene cada columna.
 colSums(is.na(penguins))
 ```
 
-### Ejercicio 3: resumen de la longitud de la aleta
+#### Ejercicio 3: resumen de la longitud de la aleta
 
 ```{r}
 aleta <- penguins$flipper_length_mm
@@ -37,7 +37,7 @@ c(media = mean(aleta, na.rm = TRUE),
   iqr = IQR(aleta, na.rm = TRUE))
 ```
 
-### Ejercicio 4: comparar grupos
+#### Ejercicio 4: comparar grupos
 
 ```{r}
 penguins |>
@@ -45,7 +45,7 @@ penguins |>
   summarise(peso_medio = mean(body_mass_g, na.rm = TRUE), .groups = "drop")
 ```
 
-### Ejercicio 5: gráfico por grupos
+#### Ejercicio 5: gráfico por grupos
 
 ```{r}
 #| label: fig-lab-aleta
@@ -55,7 +55,7 @@ ggplot(penguins, aes(x = flipper_length_mm, fill = species)) +
   labs(x = "Longitud de la aleta (mm)", y = "Frecuencia", fill = "Especie")
 ```
 
-## Ejercicios propuestos
+### Ejercicios propuestos
 
 1. Calcula la tabla de frecuencias relativas de `island`.
 2. ¿Qué especie tiene mayor coeficiente de variación en `body_mass_g`?
@@ -65,10 +65,10 @@ ggplot(penguins, aes(x = flipper_length_mm, fill = species)) +
 
 {{< pagebreak >}}
 
-## Soluciones
+### Soluciones
 
 ::: {.callout-note collapse="true"}
-## Soluciones de los ejercicios propuestos
+### Soluciones de los ejercicios propuestos
 
 ```{r}
 # 1

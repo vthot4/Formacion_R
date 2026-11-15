@@ -1,6 +1,6 @@
-# Estadística descriptiva: teoría
+## Teoría
 
-## Objetivos
+### Objetivos
 
 - Distinguir los tipos de variables.
 - Resumir una variable con medidas de posición y de dispersión.
@@ -12,7 +12,7 @@ library(tidyverse)
 library(palmerpenguins)
 ```
 
-## Tipos de variables
+### Tipos de variables
 
 | Tipo | Ejemplo | Medida habitual |
 |------|---------|-----------------|
@@ -27,14 +27,14 @@ En R, las cualitativas se guardan como `factor` o `character` y las cuantitativa
 glimpse(penguins)
 ```
 
-## Tablas de frecuencias
+### Tablas de frecuencias
 
 ```{r}
 table(penguins$species)              # frecuencias absolutas
 prop.table(table(penguins$species))  # frecuencias relativas
 ```
 
-## Medidas de posición
+### Medidas de posición
 
 La **media** se ve afectada por los valores extremos; la **mediana** no.
 
@@ -55,7 +55,7 @@ moda <- function(x) {
 moda(penguins$species)
 ```
 
-## Medidas de dispersión
+### Medidas de dispersión
 
 ```{r}
 var(peso, na.rm = TRUE)                       # varianza
@@ -67,13 +67,13 @@ sd(peso, na.rm = TRUE) / mean(peso, na.rm = TRUE)  # coeficiente de variación
 
 El **coeficiente de variación** permite comparar la dispersión de variables con distintas unidades.
 
-## Resumen rápido
+### Resumen rápido
 
 ```{r}
 summary(penguins$body_mass_g)
 ```
 
-## Resumen por grupos
+### Resumen por grupos
 
 ```{r}
 penguins |>
@@ -86,9 +86,9 @@ penguins |>
   )
 ```
 
-## Gráficos
+### Gráficos
 
-### Histograma
+#### Histograma
 
 ```{r}
 #| label: fig-histograma
@@ -98,7 +98,7 @@ ggplot(penguins, aes(x = body_mass_g)) +
   labs(x = "Peso (g)", y = "Frecuencia")
 ```
 
-### Diagrama de barras
+#### Diagrama de barras
 
 ```{r}
 #| label: fig-barras
@@ -108,7 +108,7 @@ ggplot(penguins, aes(x = species)) +
   labs(x = "Especie", y = "Frecuencia")
 ```
 
-### Diagrama de caja
+#### Diagrama de caja
 
 El diagrama de caja muestra la mediana, los cuartiles y los valores atípicos.
 
@@ -122,7 +122,7 @@ ggplot(penguins, aes(x = species, y = body_mass_g)) +
 
 Se considera atípico un valor que queda a más de 1,5 veces el rango intercuartílico por debajo del primer cuartil o por encima del tercero.
 
-## Forma de la distribución
+### Forma de la distribución
 
 La **asimetría** indica hacia qué lado se alarga la cola. No hay una función en R base, pero se calcula fácilmente:
 
@@ -133,7 +133,7 @@ mean((x - mean(x))^3) / sd(x)^3
 
 Un valor cercano a 0 indica simetría; positivo, cola a la derecha; negativo, cola a la izquierda.
 
-## Resumen
+### Resumen
 
 - El tipo de variable determina qué resumen y qué gráfico usar.
 - Media y desviación típica son sensibles a los atípicos; mediana y rango intercuartílico no.

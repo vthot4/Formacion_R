@@ -1,6 +1,6 @@
-# Inferencia estadística: teoría
+## Teoría
 
-## Objetivos
+### Objetivos
 
 - Entender la diferencia entre población y muestra.
 - Construir e interpretar intervalos de confianza.
@@ -12,11 +12,11 @@ library(tidyverse)
 library(palmerpenguins)
 ```
 
-## Población y muestra
+### Población y muestra
 
 La **inferencia** usa una muestra para sacar conclusiones sobre una población. El valor calculado en la muestra (por ejemplo, la media $\bar{x}$) es un **estimador** del parámetro poblacional ($\mu$).
 
-## Intervalo de confianza para la media
+### Intervalo de confianza para la media
 
 Un intervalo de confianza del 95 % es un rango construido con un método que, repetido muchas veces, contiene el parámetro real en el 95 % de los casos.
 
@@ -34,7 +34,7 @@ t.test(peso)$conf.int                              # con R
 
 Un intervalo más estrecho indica una estimación más precisa: aumenta el tamaño de la muestra o disminuye la variabilidad.
 
-## Contraste de hipótesis
+### Contraste de hipótesis
 
 1. Se plantean la hipótesis nula $H_0$ (no hay efecto) y la alternativa $H_1$.
 2. Se calcula un **estadístico** a partir de la muestra.
@@ -45,7 +45,7 @@ Un intervalo más estrecho indica una estimación más precisa: aumenta el tama�
 Un p-valor grande **no demuestra** que $H_0$ sea cierta: solo indica que los datos no aportan evidencia suficiente contra ella.
 :::
 
-## Test t para una media
+### Test t para una media
 
 ¿Es la media del peso distinta de 4000 g?
 
@@ -53,7 +53,7 @@ Un p-valor grande **no demuestra** que $H_0$ sea cierta: solo indica que los dat
 t.test(peso, mu = 4000)
 ```
 
-## Test t para dos grupos independientes
+### Test t para dos grupos independientes
 
 ¿Pesan lo mismo los pingüinos Adelie y Gentoo?
 
@@ -70,7 +70,7 @@ ggplot(dos_especies, aes(x = species, y = body_mass_g)) +
   labs(x = "Especie", y = "Peso (g)")
 ```
 
-## Test para una proporción
+### Test para una proporción
 
 ¿Es la proporción de machos distinta de 0,5?
 
@@ -80,7 +80,7 @@ tabla_sexo
 prop.test(tabla_sexo["male"], sum(tabla_sexo), p = 0.5)
 ```
 
-## Test chi-cuadrado de independencia
+### Test chi-cuadrado de independencia
 
 ¿Está relacionada la especie con la isla?
 
@@ -96,7 +96,7 @@ El test compara las frecuencias observadas con las esperadas bajo independencia.
 chisq.test(tabla)$expected
 ```
 
-## Resumen
+### Resumen
 
 - `t.test()` sirve para una media, dos grupos y datos pareados (`paired = TRUE`).
 - `prop.test()` contrasta proporciones.

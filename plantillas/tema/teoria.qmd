@@ -1,11 +1,11 @@
-# Título del tema (teoría)
+## Teoría
 
-## Objetivos
+### Objetivos
 
 - Objetivo 1
 - Objetivo 2
 
-## Contenidos
+### Contenidos
 
 Explicación con ejemplos en R:
 
@@ -14,6 +14,6 @@ Explicación con ejemplos en R:
 summary(mtcars$mpg)
 ```
 
-## Resumen
+### Resumen
 
 Ideas clave del tema.

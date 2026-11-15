@@ -1,17 +1,17 @@
-# Introducción a R: teoría
+## Teoría
 
-## Objetivos
+### Objetivos
 
 - Usar R como calculadora y crear objetos.
 - Conocer los tipos básicos de datos y los vectores.
 - Trabajar con `data.frame` y leer datos desde un archivo.
 - Hacer un primer resumen y un primer gráfico.
 
-## R y RStudio
+### R y RStudio
 
 **R** es el lenguaje y **RStudio** es el entorno donde lo usamos. En RStudio tienes cuatro zonas: el editor de scripts, la consola, el entorno (objetos creados) y el panel de gráficos y ayuda.
 
-## R como calculadora
+### R como calculadora
 
 ```{r}
 2 + 3 * 4
@@ -19,7 +19,7 @@ sqrt(16)
 10 %% 3   # resto de la división
 ```
 
-## Objetos
+### Objetos
 
 Con `<-` guardamos un valor en un objeto con nombre:
 
@@ -29,7 +29,7 @@ y <- x^2
 y
 ```
 
-## Tipos de datos
+### Tipos de datos
 
 ```{r}
 class(3.14)        # numeric
@@ -38,7 +38,7 @@ class("hola")      # character
 class(TRUE)        # logical
 ```
 
-## Vectores
+### Vectores
 
 Un vector es una colección de valores del mismo tipo, creada con `c()`.
 
@@ -49,7 +49,7 @@ edades[2]          # segundo elemento
 edades[edades > 20]
 ```
 
-## Factores
+### Factores
 
 Representan variables categóricas.
 
@@ -59,7 +59,7 @@ levels(grupo)
 table(grupo)
 ```
 
-## Data frames
+### Data frames
 
 Un `data.frame` es una tabla: cada columna es una variable y cada fila una observación.
 
@@ -68,21 +68,21 @@ head(mtcars)
 str(mtcars)
 ```
 
-### Acceder a columnas y filas
+#### Acceder a columnas y filas
 
 ```{r}
 mtcars$mpg[1:5]
 mtcars[1:3, c("mpg", "cyl")]
 ```
 
-## Leer datos desde un archivo
+### Leer datos desde un archivo
 
 ```{r}
 #| eval: false
 datos <- read.csv("datos/mi_archivo.csv")
 ```
 
-## Paquetes
+### Paquetes
 
 Los paquetes amplían R. Se instalan una vez y se cargan en cada sesión:
 
@@ -95,7 +95,7 @@ install.packages("tidyverse")
 library(tidyverse)
 ```
 
-## Primer resumen y gráfico
+### Primer resumen y gráfico
 
 ```{r}
 summary(mtcars$mpg)
@@ -109,7 +109,7 @@ ggplot(mtcars, aes(x = mpg)) +
   labs(x = "Millas por galón", y = "Frecuencia")
 ```
 
-## Resumen
+### Resumen
 
 - Los objetos se crean con `<-`.
 - Un vector agrupa valores del mismo tipo.

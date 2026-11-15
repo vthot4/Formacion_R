@@ -1,0 +1,5 @@
+# Probabilidad y distribuciones
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

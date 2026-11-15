@@ -31,6 +31,6 @@ quarto preview             # vista previa en el navegador
 ## Añadir un tema nuevo
 
 1. Copia `plantillas/tema/` a `temas/NN-nombre-del-tema/`.
-2. Escribe `teoria.qmd` y `laboratorio.qmd`.
-3. Añade el tema en `book.chapters` de `_quarto.yml`.
+2. Escribe `teoria.qmd` y `laboratorio.qmd` (empiezan con un título de nivel 2, `## Teoría` y `## Laboratorio`, y el resto de títulos bajan un nivel) y pon el título del tema en `tema.qmd`, que los une.
+3. Añade `temas/NN-nombre-del-tema/tema.qmd` en `book.chapters` de `_quarto.yml`.
 4. Añade una fila en la tabla de este README.

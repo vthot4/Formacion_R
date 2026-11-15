@@ -1,0 +1,5 @@
+# Introducción a R
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}

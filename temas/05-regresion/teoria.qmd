@@ -1,6 +1,6 @@
-# Correlación y regresión lineal: teoría
+## Teoría
 
-## Objetivos
+### Objetivos
 
 - Representar y medir la relación entre dos variables cuantitativas.
 - Ajustar e interpretar un modelo de regresión lineal simple.
@@ -10,7 +10,7 @@
 library(tidyverse)
 ```
 
-## Diagrama de dispersión
+### Diagrama de dispersión
 
 Con `mtcars`: ¿cómo se relaciona el peso del coche (`wt`, en miles de libras) con el consumo (`mpg`)?
 
@@ -22,7 +22,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
   labs(x = "Peso (1000 lb)", y = "Millas por galón")
 ```
 
-## Correlación
+### Correlación
 
 El **coeficiente de correlación de Pearson** $r$ mide la relación lineal entre dos variables. Va de $-1$ a $1$.
 
@@ -46,7 +46,7 @@ Para contrastar si la correlación es distinta de 0:
 cor.test(mtcars$wt, mtcars$mpg)
 ```
 
-## Regresión lineal simple
+### Regresión lineal simple
 
 El modelo es
 
@@ -63,7 +63,7 @@ modelo
 summary(modelo)
 ```
 
-### Cómo leer el resumen
+#### Cómo leer el resumen
 
 - **Estimate**: coeficientes. Por cada 1000 libras más de peso, el consumo baja en media la cantidad que indica la pendiente.
 - **Pr(>|t|)**: p-valor del contraste $H_0: \beta = 0$.
@@ -75,7 +75,7 @@ confint(modelo)
 summary(modelo)$r.squared
 ```
 
-### Recta ajustada
+#### Recta ajustada
 
 ```{r}
 #| label: fig-recta
@@ -86,7 +86,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
   labs(x = "Peso (1000 lb)", y = "Millas por galón")
 ```
 
-## Predicción
+### Predicción
 
 ```{r}
 nuevos <- data.frame(wt = c(2.5, 3, 4))
@@ -100,7 +100,7 @@ Conviene predecir solo dentro del rango de valores observados de `wt`.
 range(mtcars$wt)
 ```
 
-## Revisión de supuestos
+### Revisión de supuestos
 
 Los residuos deberían estar repartidos al azar alrededor de 0, con varianza constante y distribución aproximadamente normal.
 
@@ -123,7 +123,7 @@ ggplot(datos_res, aes(sample = residuo)) +
 
 Una curvatura en el gráfico de residuos sugiere que la relación no es lineal.
 
-## Resumen
+### Resumen
 
 - `cor()` mide la relación lineal; `cor.test()` la contrasta.
 - `lm(y ~ x, data)` ajusta la recta; `summary()` da coeficientes, p-valores y $R^2$.

@@ -1,12 +1,12 @@
-# Título del tema (laboratorio)
+## Laboratorio
 
-## Objetivos
+### Objetivos
 
 Qué se practica en este laboratorio.
 
-## Ejercicios guiados
+### Ejercicios guiados
 
-### Ejercicio 1
+#### Ejercicio 1
 
 Enunciado.
 
@@ -15,17 +15,17 @@ Enunciado.
 # Código del ejercicio
 ```
 
-## Ejercicios propuestos
+### Ejercicios propuestos
 
 1. Enunciado del ejercicio propuesto 1.
 2. Enunciado del ejercicio propuesto 2.
 
 {{< pagebreak >}}
 
-## Soluciones
+### Soluciones
 
 ::: {.callout-note collapse="true"}
-## Solución del ejercicio 1
+### Solución del ejercicio 1
 
 ```{r}
 #| label: sol1

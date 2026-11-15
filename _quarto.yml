@@ -9,26 +9,11 @@ book:
   output-file: formacion-r
   chapters:
     - index.qmd
-    - part: "Tema 1. Introducción a R"
-      chapters:
-        - temas/01-introduccion-r/teoria.qmd
-        - temas/01-introduccion-r/laboratorio.qmd
-    - part: "Tema 2. Estadística descriptiva"
-      chapters:
-        - temas/02-estadistica-descriptiva/teoria.qmd
-        - temas/02-estadistica-descriptiva/laboratorio.qmd
-    - part: "Tema 3. Probabilidad y distribuciones"
-      chapters:
-        - temas/03-probabilidad/teoria.qmd
-        - temas/03-probabilidad/laboratorio.qmd
-    - part: "Tema 4. Inferencia estadística"
-      chapters:
-        - temas/04-inferencia/teoria.qmd
-        - temas/04-inferencia/laboratorio.qmd
-    - part: "Tema 5. Correlación y regresión"
-      chapters:
-        - temas/05-regresion/teoria.qmd
-        - temas/05-regresion/laboratorio.qmd
+    - temas/01-introduccion-r/tema.qmd
+    - temas/02-estadistica-descriptiva/tema.qmd
+    - temas/03-probabilidad/tema.qmd
+    - temas/04-inferencia/tema.qmd
+    - temas/05-regresion/tema.qmd
     # --- Añade aquí los nuevos temas (ver plantillas/tema/) ---
 
 lang: es

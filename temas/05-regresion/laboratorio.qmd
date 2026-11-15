@@ -1,6 +1,6 @@
-# Correlación y regresión lineal: laboratorio
+## Laboratorio
 
-## Objetivos
+### Objetivos
 
 Medir la correlación, ajustar un modelo de regresión lineal simple, interpretarlo y revisar sus residuos.
 
@@ -9,9 +9,9 @@ library(tidyverse)
 library(palmerpenguins)
 ```
 
-## Ejercicios guiados
+### Ejercicios guiados
 
-### Ejercicio 1: explorar la relación
+#### Ejercicio 1: explorar la relación
 
 ¿Cómo se relacionan la longitud de la aleta y el peso en los pingüinos?
 
@@ -23,14 +23,14 @@ ggplot(penguins, aes(x = flipper_length_mm, y = body_mass_g)) +
   labs(x = "Longitud de la aleta (mm)", y = "Peso (g)")
 ```
 
-### Ejercicio 2: correlación
+#### Ejercicio 2: correlación
 
 ```{r}
 cor(penguins$flipper_length_mm, penguins$body_mass_g, use = "complete.obs")
 cor.test(penguins$flipper_length_mm, penguins$body_mass_g)
 ```
 
-### Ejercicio 3: ajustar el modelo
+#### Ejercicio 3: ajustar el modelo
 
 ```{r}
 modelo <- lm(body_mass_g ~ flipper_length_mm, data = penguins)
@@ -39,7 +39,7 @@ summary(modelo)
 
 Interpreta la pendiente: cuántos gramos aumenta el peso por cada milímetro más de aleta.
 
-### Ejercicio 4: predicción
+#### Ejercicio 4: predicción
 
 Peso esperado para aletas de 190, 200 y 210 mm:
 
@@ -47,7 +47,7 @@ Peso esperado para aletas de 190, 200 y 210 mm:
 predict(modelo, newdata = data.frame(flipper_length_mm = c(190, 200, 210)))
 ```
 
-### Ejercicio 5: residuos
+#### Ejercicio 5: residuos
 
 ```{r}
 #| label: fig-lab-res
@@ -58,7 +58,7 @@ ggplot(datos_res, aes(ajustado, residuo)) +
   geom_hline(yintercept = 0, linetype = "dashed")
 ```
 
-## Ejercicios propuestos
+### Ejercicios propuestos
 
 1. Calcula la correlación entre `hp` y `mpg` en `mtcars` y haz el diagrama de dispersión.
 2. Ajusta `mpg ~ hp`. ¿Cuánto vale $R^2$? ¿Es mejor o peor que `mpg ~ wt`?
@@ -68,10 +68,10 @@ ggplot(datos_res, aes(ajustado, residuo)) +
 
 {{< pagebreak >}}
 
-## Soluciones
+### Soluciones
 
 ::: {.callout-note collapse="true"}
-## Soluciones de los ejercicios propuestos
+### Soluciones de los ejercicios propuestos
 
 ```{r}
 # 1

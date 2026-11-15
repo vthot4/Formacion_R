@@ -1,0 +1,5 @@
+# Estadística descriptiva
+
+{{< include teoria.qmd >}}
+
+{{< include laboratorio.qmd >}}
