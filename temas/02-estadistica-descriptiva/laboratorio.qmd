@@ -1,0 +1,98 @@
+# Estadística descriptiva: laboratorio
+
+## Objetivos
+
+Resumir y representar variables de un conjunto de datos real, por separado y por grupos.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+```
+
+## Ejercicios guiados
+
+### Ejercicio 1: tipos de variables
+
+Identifica el tipo de cada variable de `penguins`.
+
+```{r}
+glimpse(penguins)
+```
+
+### Ejercicio 2: datos ausentes
+
+Cuenta cuántos valores ausentes tiene cada columna.
+
+```{r}
+colSums(is.na(penguins))
+```
+
+### Ejercicio 3: resumen de la longitud de la aleta
+
+```{r}
+aleta <- penguins$flipper_length_mm
+c(media = mean(aleta, na.rm = TRUE),
+  mediana = median(aleta, na.rm = TRUE),
+  desv_tipica = sd(aleta, na.rm = TRUE),
+  iqr = IQR(aleta, na.rm = TRUE))
+```
+
+### Ejercicio 4: comparar grupos
+
+```{r}
+penguins |>
+  group_by(species, sex) |>
+  summarise(peso_medio = mean(body_mass_g, na.rm = TRUE), .groups = "drop")
+```
+
+### Ejercicio 5: gráfico por grupos
+
+```{r}
+#| label: fig-lab-aleta
+#| fig-cap: "Longitud de la aleta por especie."
+ggplot(penguins, aes(x = flipper_length_mm, fill = species)) +
+  geom_histogram(bins = 25, alpha = 0.7, position = "identity", na.rm = TRUE) +
+  labs(x = "Longitud de la aleta (mm)", y = "Frecuencia", fill = "Especie")
+```
+
+## Ejercicios propuestos
+
+1. Calcula la tabla de frecuencias relativas de `island`.
+2. ¿Qué especie tiene mayor coeficiente de variación en `body_mass_g`?
+3. Haz un diagrama de caja de `bill_length_mm` según `island`.
+4. Calcula el primer y el tercer cuartil de `bill_depth_mm`. ¿Hay valores atípicos según el criterio de 1,5 · IQR?
+5. Con `mtcars`, resume `mpg` según el número de cilindros (`cyl`).
+
+{{< pagebreak >}}
+
+## Soluciones
+
+::: {.callout-note collapse="true"}
+## Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+round(prop.table(table(penguins$island)), 3)
+
+# 2
+penguins |>
+  group_by(species) |>
+  summarise(cv = sd(body_mass_g, na.rm = TRUE) / mean(body_mass_g, na.rm = TRUE))
+
+# 3
+ggplot(penguins, aes(x = island, y = bill_length_mm)) +
+  geom_boxplot(na.rm = TRUE)
+
+# 4
+q <- quantile(penguins$bill_depth_mm, c(0.25, 0.75), na.rm = TRUE)
+limites <- c(q[1] - 1.5 * diff(q), q[2] + 1.5 * diff(q))
+q
+limites
+sum(penguins$bill_depth_mm < limites[1] | penguins$bill_depth_mm > limites[2], na.rm = TRUE)
+
+# 5
+mtcars |>
+  group_by(cyl) |>
+  summarise(media = mean(mpg), mediana = median(mpg), desv_tipica = sd(mpg))
+```
+:::

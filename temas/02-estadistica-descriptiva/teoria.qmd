@@ -1,0 +1,141 @@
+# Estadística descriptiva: teoría
+
+## Objetivos
+
+- Distinguir los tipos de variables.
+- Resumir una variable con medidas de posición y de dispersión.
+- Construir tablas de frecuencias.
+- Representar datos con histogramas, diagramas de barras y diagramas de caja.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+```
+
+## Tipos de variables
+
+| Tipo | Ejemplo | Medida habitual |
+|------|---------|-----------------|
+| Cualitativa nominal | especie, isla | frecuencias, moda |
+| Cualitativa ordinal | nivel de estudios | frecuencias, mediana |
+| Cuantitativa discreta | número de hijos | media, mediana |
+| Cuantitativa continua | peso, longitud | media, desviación típica |
+
+En R, las cualitativas se guardan como `factor` o `character` y las cuantitativas como `numeric` o `integer`.
+
+```{r}
+glimpse(penguins)
+```
+
+## Tablas de frecuencias
+
+```{r}
+table(penguins$species)              # frecuencias absolutas
+prop.table(table(penguins$species))  # frecuencias relativas
+```
+
+## Medidas de posición
+
+La **media** se ve afectada por los valores extremos; la **mediana** no.
+
+```{r}
+peso <- penguins$body_mass_g
+mean(peso, na.rm = TRUE)
+median(peso, na.rm = TRUE)
+quantile(peso, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+```
+
+R no trae una función para la **moda**. Se puede obtener con una tabla:
+
+```{r}
+moda <- function(x) {
+  tabla <- table(x)
+  names(tabla)[which.max(tabla)]
+}
+moda(penguins$species)
+```
+
+## Medidas de dispersión
+
+```{r}
+var(peso, na.rm = TRUE)                       # varianza
+sd(peso, na.rm = TRUE)                        # desviación típica
+IQR(peso, na.rm = TRUE)                       # rango intercuartílico
+diff(range(peso, na.rm = TRUE))               # rango
+sd(peso, na.rm = TRUE) / mean(peso, na.rm = TRUE)  # coeficiente de variación
+```
+
+El **coeficiente de variación** permite comparar la dispersión de variables con distintas unidades.
+
+## Resumen rápido
+
+```{r}
+summary(penguins$body_mass_g)
+```
+
+## Resumen por grupos
+
+```{r}
+penguins |>
+  group_by(species) |>
+  summarise(
+    n = n(),
+    media = mean(body_mass_g, na.rm = TRUE),
+    mediana = median(body_mass_g, na.rm = TRUE),
+    desv_tipica = sd(body_mass_g, na.rm = TRUE)
+  )
+```
+
+## Gráficos
+
+### Histograma
+
+```{r}
+#| label: fig-histograma
+#| fig-cap: "Distribución del peso corporal de los pingüinos."
+ggplot(penguins, aes(x = body_mass_g)) +
+  geom_histogram(bins = 20, fill = "steelblue", color = "white", na.rm = TRUE) +
+  labs(x = "Peso (g)", y = "Frecuencia")
+```
+
+### Diagrama de barras
+
+```{r}
+#| label: fig-barras
+#| fig-cap: "Número de pingüinos por especie."
+ggplot(penguins, aes(x = species)) +
+  geom_bar(fill = "steelblue") +
+  labs(x = "Especie", y = "Frecuencia")
+```
+
+### Diagrama de caja
+
+El diagrama de caja muestra la mediana, los cuartiles y los valores atípicos.
+
+```{r}
+#| label: fig-caja
+#| fig-cap: "Peso según la especie."
+ggplot(penguins, aes(x = species, y = body_mass_g)) +
+  geom_boxplot(fill = "lightblue", na.rm = TRUE) +
+  labs(x = "Especie", y = "Peso (g)")
+```
+
+Se considera atípico un valor que queda a más de 1,5 veces el rango intercuartílico por debajo del primer cuartil o por encima del tercero.
+
+## Forma de la distribución
+
+La **asimetría** indica hacia qué lado se alarga la cola. No hay una función en R base, pero se calcula fácilmente:
+
+```{r}
+x <- na.omit(peso)
+mean((x - mean(x))^3) / sd(x)^3
+```
+
+Un valor cercano a 0 indica simetría; positivo, cola a la derecha; negativo, cola a la izquierda.
+
+## Resumen
+
+- El tipo de variable determina qué resumen y qué gráfico usar.
+- Media y desviación típica son sensibles a los atípicos; mediana y rango intercuartílico no.
+- `group_by()` + `summarise()` resume por grupos.
+- Histograma y caja para cuantitativas, barras para cualitativas.

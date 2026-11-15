@@ -1,0 +1,19 @@
+# Título del tema (teoría)
+
+## Objetivos
+
+- Objetivo 1
+- Objetivo 2
+
+## Contenidos
+
+Explicación con ejemplos en R:
+
+```{r}
+#| label: ejemplo
+summary(mtcars$mpg)
+```
+
+## Resumen
+
+Ideas clave del tema.

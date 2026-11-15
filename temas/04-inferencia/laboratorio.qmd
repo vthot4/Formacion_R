@@ -1,0 +1,103 @@
+# Inferencia estadística: laboratorio
+
+## Objetivos
+
+Construir intervalos de confianza y realizar contrastes de hipótesis con `t.test()`, `prop.test()` y `chisq.test()`.
+
+```{r}
+library(tidyverse)
+library(palmerpenguins)
+set.seed(99)
+```
+
+## Ejercicios guiados
+
+### Ejercicio 1: interpretar un intervalo de confianza
+
+Intervalo de confianza al 95 % y al 99 % para la longitud media del pico.
+
+```{r}
+pico <- na.omit(penguins$bill_length_mm)
+t.test(pico, conf.level = 0.95)$conf.int
+t.test(pico, conf.level = 0.99)$conf.int
+```
+
+¿Cuál es más ancho? ¿Por qué?
+
+### Ejercicio 2: qué significa el 95 %
+
+Simulamos 100 muestras de tamaño 30 de una población con media 50 y vemos cuántos intervalos contienen la media real.
+
+```{r}
+contiene <- replicate(100, {
+  m <- rnorm(30, mean = 50, sd = 10)
+  ic <- t.test(m)$conf.int
+  ic[1] <= 50 & 50 <= ic[2]
+})
+mean(contiene)
+```
+
+### Ejercicio 3: dos grupos
+
+¿Hay diferencia en la longitud de la aleta entre machos y hembras?
+
+```{r}
+con_sexo <- penguins |> filter(!is.na(sex))
+t.test(flipper_length_mm ~ sex, data = con_sexo)
+```
+
+### Ejercicio 4: chi-cuadrado
+
+¿Está el sexo asociado a la especie?
+
+```{r}
+tabla <- table(con_sexo$species, con_sexo$sex)
+tabla
+chisq.test(tabla)
+```
+
+### Ejercicio 5: datos pareados
+
+Con `sleep` (horas extra de sueño de 10 pacientes con dos fármacos):
+
+```{r}
+sleep_ancho <- reshape(sleep, idvar = "ID", timevar = "group", direction = "wide")
+t.test(sleep_ancho$extra.1, sleep_ancho$extra.2, paired = TRUE)
+```
+
+## Ejercicios propuestos
+
+1. Calcula un intervalo de confianza al 90 % para la media de `body_mass_g` de los pingüinos Gentoo.
+2. Contrasta si la longitud media del pico de los Adelie es distinta de 38 mm.
+3. Compara el peso de Adelie y Chinstrap con un test t. ¿Qué conclusión sacas al 5 %?
+4. Con `mtcars`, ¿consumen distinto los coches automáticos y manuales? Usa `mpg ~ am`.
+5. Contrasta con `prop.test()` si la proporción de pingüinos Adelie es distinta de 1/3.
+
+{{< pagebreak >}}
+
+## Soluciones
+
+::: {.callout-note collapse="true"}
+## Soluciones de los ejercicios propuestos
+
+```{r}
+# 1
+gentoo <- penguins |> filter(species == "Gentoo")
+t.test(gentoo$body_mass_g, conf.level = 0.90)$conf.int
+
+# 2
+adelie <- penguins |> filter(species == "Adelie")
+t.test(adelie$bill_length_mm, mu = 38)
+
+# 3
+ad_ch <- penguins |> filter(species %in% c("Adelie", "Chinstrap"))
+t.test(body_mass_g ~ species, data = ad_ch)
+
+# 4
+t.test(mpg ~ am, data = mtcars)
+
+# 5
+n_adelie <- sum(penguins$species == "Adelie")
+prop.test(n_adelie, nrow(penguins), p = 1/3)
+```
+:::

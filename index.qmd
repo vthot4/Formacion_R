@@ -1,0 +1,16 @@
+# Presentación {.unnumbered}
+
+Este libro reúne el material del curso de **R aplicado a la estadística básica**: cada tema tiene una parte de teoría y un laboratorio práctico.
+
+## Cómo usar este material
+
+1. Lee la teoría del tema.
+2. Haz el laboratorio ejecutando el código en RStudio.
+3. Intenta resolver los ejercicios propuestos antes de abrir las soluciones.
+
+## Requisitos
+
+- R (4.3 o superior) y RStudio.
+- Los paquetes del curso: ejecuta `source("scripts/instalar.R")`.
+
+El curso irá creciendo con nuevos temas. El índice actualizado está en el `README.md` del repositorio.
