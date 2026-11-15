@@ -79,6 +79,71 @@ c(m1 = cv_rmse(body_mass_g ~ flipper_length_mm, pingu),
   m3 = cv_rmse(body_mass_g ~ flipper_length_mm + species + sex, pingu))
 ```
 
+#### Ejercicio 6: regresión simple a mano
+
+Con $n=6$ observaciones, calcula todo con las fórmulas de $S_{xx}$, $S_{xy}$ y compara con `lm()`.
+
+```{r}
+x <- c(1, 2, 3, 4, 5, 6); y <- c(2.0, 3.5, 3.1, 5.8, 5.2, 7.9); n <- length(x)
+Sxx <- sum((x - mean(x))^2); Sxy <- sum((x - mean(x)) * (y - mean(y))); Syy <- sum((y - mean(y))^2)
+
+b1 <- Sxy / Sxx; b0 <- mean(y) - b1 * mean(x)
+e <- y - (b0 + b1 * x); SCR <- sum(e^2)
+sigma2 <- SCR / (n - 2); se_b1 <- sqrt(sigma2 / Sxx)
+t_obs <- b1 / se_b1
+ic <- b1 + c(-1, 1) * qt(0.975, n - 2) * se_b1
+R2 <- 1 - SCR / Syy
+F_obs <- (Syy - SCR) / (SCR / (n - 2))
+
+c(b0 = b0, b1 = b1, RSE = sqrt(sigma2), R2 = R2, t = t_obs, F = F_obs, t_cuadrado = t_obs^2)
+ic
+summary(lm(y ~ x))
+```
+
+En regresión simple $F=t^2$ y $R^2=r^2$.
+
+#### Ejercicio 7: confianza frente a predicción
+
+Para $x_0=7$ (fuera del rango observado), calcula ambos intervalos con las fórmulas y con `predict()`.
+
+```{r}
+x0 <- 7
+fit <- b0 + b1 * x0
+se_media <- sqrt(sigma2) * sqrt(1 / n + (x0 - mean(x))^2 / Sxx)
+se_pred  <- sqrt(sigma2) * sqrt(1 + 1 / n + (x0 - mean(x))^2 / Sxx)
+tq <- qt(0.975, n - 2)
+rbind(confianza = fit + c(-1, 1) * tq * se_media,
+      prediccion = fit + c(-1, 1) * tq * se_pred)
+
+m <- lm(y ~ x)
+predict(m, data.frame(x = x0), interval = "confidence")
+predict(m, data.frame(x = x0), interval = "prediction")
+```
+
+#### Ejercicio 8: variables ficticias
+
+Con los pingüinos, explica el peso por la especie y comprueba que los coeficientes son diferencias de medias.
+
+```{r}
+mp <- lm(body_mass_g ~ species, data = penguins)
+coef(mp)
+tapply(penguins$body_mass_g, penguins$species, mean, na.rm = TRUE)
+```
+
+#### Ejercicio 9: interacción con un factor
+
+¿Depende el efecto del peso sobre el consumo del tipo de transmisión?
+
+```{r}
+d <- mtcars |> mutate(am = factor(am, labels = c("automático", "manual")))
+mint <- lm(mpg ~ wt * am, data = d)
+round(coef(summary(mint)), 3)
+
+# pendiente de wt en cada transmisión
+c(automático = unname(coef(mint)["wt"]),
+  manual = unname(coef(mint)["wt"] + coef(mint)["wt:ammanual"]))
+```
+
 ### Ejercicios propuestos
 
 1. Con `mtcars`, calcula a mano (fórmula matricial) los coeficientes de `mpg ~ wt + hp` y compara con `lm()`. Calcula también $\hat\sigma^2$ y los errores típicos.
@@ -87,6 +152,12 @@ c(m1 = cv_rmse(body_mass_g ~ flipper_length_mm, pingu),
 4. Con `penguins`, ajusta `bill_depth_mm ~ bill_length_mm` y `bill_depth_mm ~ bill_length_mm + species`. Explica el cambio de signo de la pendiente.
 5. Compara por AIC y BIC `mpg ~ wt`, `mpg ~ wt + hp`, `mpg ~ wt + hp + qsec` y `mpg ~ poly(wt, 2) + hp`. ¿Coinciden ambos criterios?
 6. Divide `pingu` en entrenamiento (70 %) y prueba (30 %), ajusta un modelo con todas las variables numéricas y especie, y calcula el RMSE en ambos conjuntos. ¿Hay indicios de sobreajuste?
+7. Verifica por simulación las fórmulas de $V[\hat\beta_0]$ y $V[\hat\beta_1]$ con $x=1,\dots,10$, $\sigma=2$, $\beta_0=1$ y $\beta_1=0{,}5$.
+8. Calcula el sesgo del estimador de máxima verosimilitud de $\sigma^2$ y del insesgado para $n=4$, $10$ y $50$ en regresión simple, y compáralo con el factor $(n-2)/n$.
+9. Con `iris`, ajusta `Sepal.Length ~ Species`. Indica el nivel de referencia e interpreta los coeficientes. Reajusta con `relevel(Species, "virginica")` y con `contr.sum`, y comprueba que los valores ajustados no cambian.
+10. Ajusta `mpg ~ wt * factor(am)`. Obtén la pendiente de `wt` en cada tipo de transmisión y contrasta con `anova()` si la interacción mejora el modelo aditivo.
+11. Para `mpg ~ wt + hp + qsec`, calcula el $F$ global a partir del $R^2$ y comprueba que coincide con el de `summary()`.
+12. Con `mtcars`, estandariza `wt`, `hp`, `disp` y `cyl`, calcula los coeficientes ridge para $\lambda\in\{0,\,0{,}1,\,1,\,10,\,100\}$ y dibuja su trayectoria. ¿Qué ocurre con los coeficientes cuando $\lambda$ crece?
 
 {{< pagebreak >}}
 
@@ -135,5 +206,50 @@ mod <- lm(body_mass_g ~ bill_length_mm + bill_depth_mm + flipper_length_mm + spe
 rmse <- function(real, pred) sqrt(mean((real - pred)^2))
 c(entrenamiento = rmse(train$body_mass_g, predict(mod, train)),
   prueba = rmse(test$body_mass_g, predict(mod, test)))
+
+# 7
+x <- 1:10; Sxx <- sum((x - mean(x))^2); sigma <- 2; n <- length(x)
+est <- replicate(10000, {
+  yy <- 1 + 0.5 * x + rnorm(n, 0, sigma)
+  coef(lm(yy ~ x))
+})
+rbind(simulada = apply(est, 1, var),
+      teorica = c(sigma^2 * (1 / n + mean(x)^2 / Sxx), sigma^2 / Sxx))
+
+# 8
+sesgo <- function(n) {
+  est <- replicate(20000, {
+    x <- rnorm(n); y <- 1 + 2 * x + rnorm(n, 0, 2)
+    scr <- sum(resid(lm(y ~ x))^2); c(emv = scr / n, insesgado = scr / (n - 2))
+  })
+  c(rowMeans(est) - 4, factor = (n - 2) / n)
+}
+sapply(c(n4 = 4, n10 = 10, n50 = 50), sesgo)
+
+# 9
+mi1 <- lm(Sepal.Length ~ Species, data = iris)
+mi2 <- lm(Sepal.Length ~ relevel(Species, "virginica"), data = iris)
+mi3 <- lm(Sepal.Length ~ Species, data = iris, contrasts = list(Species = "contr.sum"))
+coef(mi1); coef(mi2); coef(mi3)
+c(all.equal(fitted(mi1), fitted(mi2)), all.equal(fitted(mi1), fitted(mi3)))
+
+# 10
+d <- mtcars |> mutate(am = factor(am))
+mi <- lm(mpg ~ wt * am, data = d)
+c(auto = unname(coef(mi)["wt"]), manual = unname(coef(mi)["wt"] + coef(mi)["wt:am1"]))
+anova(lm(mpg ~ wt + am, data = d), mi)
+
+# 11
+mm <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+r2 <- summary(mm)$r.squared; k <- 3; n <- nobs(mm)
+c(manual = (r2 / k) / ((1 - r2) / (n - k - 1)), lm = unname(summary(mm)$fstatistic[1]))
+
+# 12
+Xs <- scale(mtcars[, c("wt", "hp", "disp", "cyl")]); ys <- scale(mtcars$mpg)
+ridge <- function(l) drop(solve(crossprod(Xs) + l * diag(ncol(Xs)), crossprod(Xs, ys)))
+lambdas <- c(0, 0.1, 1, 10, 100)
+trayectoria <- map_dfr(lambdas, function(l) tibble(lambda = l, variable = colnames(Xs), coef = ridge(l)))
+ggplot(trayectoria, aes(factor(lambda), coef, color = variable, group = variable)) +
+  geom_line() + geom_point() + labs(x = expression(lambda), y = "Coeficiente (estandarizado)")
 ```
 :::

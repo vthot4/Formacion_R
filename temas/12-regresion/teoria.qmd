@@ -43,6 +43,44 @@ cbind(beta, se)
 coef(summary(lm(mpg ~ wt, data = mtcars)))[, 1:2]
 ```
 
+### Propiedades algebraicas del ajuste
+
+Las ecuaciones normales $X^\top X\hat{\boldsymbol\beta}=X^\top\mathbf{y}$ equivalen a $X^\top(\mathbf{y}-X\hat{\boldsymbol\beta})=\mathbf{0}$, es decir,
+
+$$X^\top\mathbf{e}=\mathbf{0}:$$
+
+**los residuos son ortogonales a todas las columnas de $X$**. De ahí se deducen tres hechos:
+
+1. Si el modelo tiene constante, la primera columna de $X$ es de unos y entonces $\sum_i e_i=0$.
+2. Los valores ajustados son ortogonales a los residuos: $\hat{\mathbf{y}}^\top\mathbf{e}=\hat{\boldsymbol\beta}^\top X^\top\mathbf{e}=0$.
+3. La variabilidad total se descompone en explicada y residual. Sumando y restando $\hat y_i$,
+$$\underbrace{\sum(y_i-\bar y)^2}_{STC}=\underbrace{\sum(\hat y_i-\bar y)^2}_{SCReg}+\underbrace{\sum e_i^2}_{SCR}+2\sum(\hat y_i-\bar y)e_i,$$
+y el término cruzado vale $\sum\hat y_ie_i-\bar y\sum e_i=0-0=0$. Por eso $R^2=SCReg/STC=1-SCR/STC\in[0,1]$.
+
+```{r}
+y <- mtcars$mpg
+X <- cbind(1, mtcars$wt)
+beta <- solve(crossprod(X), crossprod(X, y))
+yhat <- drop(X %*% beta); e <- y - yhat
+
+drop(crossprod(X, e))                       # X'e = 0 (salvo error numérico)
+c(suma_residuos = sum(e), yhat_por_e = sum(yhat * e))
+
+STC <- sum((y - mean(y))^2); SCReg <- sum((yhat - mean(y))^2); SCR <- sum(e^2)
+c(STC = STC, SCReg_mas_SCR = SCReg + SCR, R2 = SCReg / STC)
+```
+
+#### Regresión por el origen
+
+La descomposición exige que el modelo tenga **constante**. Sin ella, $X$ no contiene la columna de unos, los residuos **no tienen por qué sumar cero** (solo se garantiza $\sum x_ie_i=0$) y el $R^2$ que calcula `lm()` usa otra definición (sin centrar), que no es comparable (calculado con la fórmula centrada, el $R^2$ de un modelo sin constante puede incluso ser negativo).
+
+```{r}
+m0 <- lm(mpg ~ 0 + wt, data = mtcars)           # sin constante
+c(suma_residuos = sum(resid(m0)), x_por_e = sum(mtcars$wt * resid(m0)))
+c(R2_de_lm = summary(m0)$r.squared,
+  R2_centrado = 1 - sum(resid(m0)^2) / sum((mtcars$mpg - mean(mtcars$mpg))^2))
+```
+
 ### Regresión lineal simple
 
 ```{r}
@@ -74,6 +112,61 @@ ggplot() +
   labs(x = "Peso (1000 lb)", y = "Millas por galón")
 ```
 
+### Propiedades estadísticas del estimador
+
+Con $X$ fija, $E[\boldsymbol\varepsilon]=\mathbf{0}$ y $V[\boldsymbol\varepsilon]=\sigma^2I_n$, sustituyendo $\mathbf{y}=X\boldsymbol\beta+\boldsymbol\varepsilon$:
+
+$$\hat{\boldsymbol\beta}=(X^\top X)^{-1}X^\top(X\boldsymbol\beta+\boldsymbol\varepsilon)=\boldsymbol\beta+A\boldsymbol\varepsilon,\qquad A=(X^\top X)^{-1}X^\top.$$
+
+- **Insesgadez:** $E[\hat{\boldsymbol\beta}]=\boldsymbol\beta+A\,E[\boldsymbol\varepsilon]=\boldsymbol\beta$.
+- **Varianza:** $V[\hat{\boldsymbol\beta}]=A\,(\sigma^2I)\,A^\top=\sigma^2(X^\top X)^{-1}X^\top X(X^\top X)^{-1}=\sigma^2(X^\top X)^{-1}$.
+
+Además, por el teorema de Gauss-Markov, $\hat{\boldsymbol\beta}$ tiene varianza mínima entre los estimadores lineales e insesgados (es el **MELI**).
+
+En regresión simple, $(X^\top X)^{-1}=\dfrac{1}{nS_{xx}}\begin{pmatrix}\sum x_i^2&-\sum x_i\\-\sum x_i&n\end{pmatrix}$ con $S_{xx}=\sum(x_i-\bar x)^2$, y de la diagonal salen
+
+$$V[\hat\beta_1]=\frac{\sigma^2}{S_{xx}},\qquad V[\hat\beta_0]=\sigma^2\left(\frac1n+\frac{\bar x^2}{S_{xx}}\right).$$
+
+La pendiente se estima con más precisión cuanto **más dispersos** estén los valores de $x$ (mayor $S_{xx}$). Lo comprobamos por simulación, repitiendo el experimento con la misma $X$:
+
+```{r}
+x <- mtcars$wt; n <- length(x)
+sigma <- 3; beta0 <- 35; beta1 <- -5
+Sxx <- sum((x - mean(x))^2)
+
+est <- replicate(10000, {
+yy <- beta0 + beta1 * x + rnorm(n, 0, sigma)
+coef(lm(yy ~ x))
+})
+rbind(media_simulada = rowMeans(est), verdadero = c(beta0, beta1))
+rbind(varianza_simulada = apply(est, 1, var),
+      varianza_teorica  = c(sigma^2 * (1 / n + mean(x)^2 / Sxx), sigma^2 / Sxx))
+```
+
+#### Estimación de $\sigma^2$
+
+Con errores normales, la log-verosimilitud es $\ell(\boldsymbol\beta,\sigma^2)=-\frac n2\ln(2\pi)-\frac n2\ln\sigma^2-\frac{1}{2\sigma^2}SCR(\boldsymbol\beta)$. Maximizar en $\boldsymbol\beta$ equivale a minimizar $SCR$ (el EMV coincide con MCO) y, derivando en $\sigma^2$,
+
+$$\hat\sigma^2_{MV}=\frac{SCR}{n}.$$
+
+Como $E[SCR]=(n-p)\sigma^2$ ($p$ coeficientes), el EMV es **sesgado** (subestima, porque $\hat{\boldsymbol\beta}$ se elige para que los residuos sean lo más pequeños posible). El estimador insesgado, cuya raíz es el *error estándar residual*, es
+
+$$\hat\sigma^2=\frac{SCR}{n-p}.$$
+
+```{r}
+sesgo_sigma2 <- function(n, p = 2, nsim = 20000) {
+  est <- replicate(nsim, {
+    x <- rnorm(n); y <- 1 + 2 * x + rnorm(n, 0, 2)          # sigma^2 = 4
+    scr <- sum(resid(lm(y ~ x))^2)
+    c(emv = scr / n, insesgado = scr / (n - p))
+  })
+  rowMeans(est)
+}
+sapply(c(n5 = 5, n20 = 20, n100 = 100), sesgo_sigma2)
+```
+
+El sesgo del EMV es el factor $(n-p)/n$: grande con $n$ pequeño y despreciable con $n$ grande.
+
 ### Regresión lineal múltiple
 
 Con varios predictores, cada coeficiente se interpreta **manteniendo constantes los demás** (*ceteris paribus*). Las variables categóricas entran como variables indicadoras respecto a un nivel de referencia.
@@ -90,6 +183,87 @@ El $R^2$ siempre crece al añadir variables; el $R^2$ **ajustado** penaliza el n
 anova(m1, m2)
 c(R2 = summary(m2)$r.squared, R2_ajustado = summary(m2)$adj.r.squared)
 ```
+
+#### Contraste $F$ global a partir de $R^2$
+
+Con $k=p-1$ predictores, el contraste $H_0:\beta_1=\cdots=\beta_k=0$ se puede escribir con el $R^2$:
+
+$$F=\frac{R^2/k}{(1-R^2)/(n-k-1)}\ \sim\ F_{k,\,n-k-1}\quad\text{bajo }H_0.$$
+
+Conviene mirar este contraste global antes que los $t$ individuales: con muchos predictores, algún $t$ saldría significativo por azar.
+
+```{r}
+k <- length(coef(m2)) - 1; n <- nobs(m2); r2 <- summary(m2)$r.squared
+c(F_manual = (r2 / k) / ((1 - r2) / (n - k - 1)), F_lm = unname(summary(m2)$fstatistic[1]))
+```
+
+### Variables cualitativas
+
+Un factor con $k$ niveles entra en el modelo mediante $k-1$ **variables ficticias** (indicadoras); el nivel omitido es la **referencia** y queda recogido en la constante. Con tres niveles, por ejemplo cilindros:
+
+```{r}
+d <- mtcars |> mutate(cil = factor(cyl))
+head(model.matrix(~ cil, data = d), 3)
+
+mcil <- lm(mpg ~ cil, data = d)
+coef(mcil)                                           # constante = media de la referencia (4 cil.)
+tapply(d$mpg, d$cil, mean)                           # medias de cada grupo
+```
+
+La constante es la media del grupo de referencia y cada coeficiente es la **diferencia de medias** respecto a él. Cambiar la codificación (por ejemplo $+1/-1$ para dos grupos, `contr.sum`) cambia la **interpretación** de los coeficientes pero **no el ajuste**:
+
+```{r}
+m_suma <- lm(mpg ~ cil, data = d, contrasts = list(cil = "contr.sum"))
+coef(m_suma)                                         # la constante es la media de las medias de grupo
+all.equal(fitted(mcil), fitted(m_suma))
+```
+
+**Trampa de las variables ficticias.** Si se incluyen las $k$ indicadoras *y* la constante, su suma es la columna de unos: $X$ pierde el rango completo y $X^\top X$ no es invertible.
+
+```{r}
+d3 <- d |> mutate(c4 = cyl == 4, c6 = cyl == 6, c8 = cyl == 8)
+lm(mpg ~ c4 + c6 + c8, data = d3)                    # un coeficiente queda NA
+qr(model.matrix(~ c4 + c6 + c8, data = d3))$rank     # rango 3 < 4 columnas
+```
+
+### Interacción
+
+En un modelo aditivo el efecto de un predictor no depende de los demás. Con **interacción**, $y=\beta_0+\beta_1x_1+\beta_2x_2+\beta_3x_1x_2+\varepsilon$, agrupando términos,
+
+$$y=\beta_0+(\beta_1+\beta_3x_2)\,x_1+\beta_2x_2+\varepsilon:$$
+
+la pendiente de $x_1$ **depende de** $x_2$ (y recíprocamente: hay sinergia si $\beta_3>0$).
+
+```{r}
+mi <- lm(mpg ~ wt * hp, data = mtcars)
+round(coef(summary(mi)), 4)
+
+# pendiente de hp para distintos pesos
+coef(mi)["hp"] + coef(mi)["wt:hp"] * c(peso_2 = 2, peso_3 = 3, peso_4 = 4)
+```
+
+```{r}
+#| label: fig-interaccion
+#| fig-cap: "Con interacción, la relación entre hp y mpg cambia con el peso del coche."
+malla <- expand_grid(hp = seq(50, 330, length.out = 100), wt = c(2, 3, 4))
+malla$mpg <- predict(mi, malla)
+ggplot(malla, aes(hp, mpg, color = factor(wt))) +
+  geom_line() +
+  labs(color = "Peso (1000 lb)", x = "hp", y = "mpg previsto")
+```
+
+La mejora se contrasta con el $F$ parcial, y se puede medir qué parte de lo que quedaba por explicar recoge la interacción:
+
+```{r}
+aditivo <- lm(mpg ~ wt + hp, data = mtcars)
+anova(aditivo, mi)
+r2_a <- summary(aditivo)$r.squared; r2_i <- summary(mi)$r.squared
+(r2_i - r2_a) / (1 - r2_a)          # fracción de la variabilidad no explicada que recoge la interacción
+```
+
+::: {.callout-important}
+**Principio jerárquico.** Si el modelo incluye una interacción, deben mantenerse los **efectos principales**, aunque sus p-valores no sean significativos. Sin ellos, el término de interacción cambia de significado y el modelo se vuelve difícil de interpretar.
+:::
 
 ### Paradoja de Simpson
 
@@ -154,6 +328,45 @@ vif_manual <- function(modelo) {
 vif_manual(lm(mpg ~ wt + hp + disp + cyl, data = mtcars))
 ```
 
+#### Colinealidad exacta y aproximada
+
+- **Exacta:** una columna de $X$ es combinación lineal de las otras (por ejemplo $x_2=2x_1+1$). Entonces $\operatorname{rg}(X)<p$, $X^\top X$ es singular y las ecuaciones normales tienen infinitas soluciones. `lm()` lo detecta y deja un coeficiente en `NA`.
+- **Aproximada:** $X^\top X$ es invertible pero casi singular, así que $V[\hat{\boldsymbol\beta}]=\sigma^2(X^\top X)^{-1}$ tiene valores enormes. Para el coeficiente $j$,
+$$V[\hat\beta_j]=\frac{\sigma^2}{S_{x_jx_j}}\cdot\frac{1}{1-R_j^2}=\frac{\sigma^2}{S_{x_jx_j}}\cdot VIF_j.$$
+
+```{r}
+set.seed(3)
+x1 <- rnorm(50); x2 <- 2 * x1 + 1; y <- 1 + x1 + rnorm(50)
+lm(y ~ x1 + x2)                                     # x2 sale NA
+X <- cbind(1, x1, x2)
+c(rango = qr(X)$rank, columnas = ncol(X))
+```
+
+El error típico de $\hat\beta_1$ crece como $\sqrt{VIF}$ cuando aumenta la correlación entre predictores:
+
+```{r}
+inflacion <- map_dfr(c(0, 0.9, 0.99, 0.999), function(r) {
+  x1 <- rnorm(100); x2 <- r * x1 + sqrt(1 - r^2) * rnorm(100)
+  y <- 1 + x1 + x2 + rnorm(100)
+  tibble(correlacion = r,
+         vif = 1 / (1 - cor(x1, x2)^2),
+         error_tipico_b1 = coef(summary(lm(y ~ x1 + x2)))["x1", 2])
+})
+inflacion
+```
+
+Remedios: **eliminar** una de las variables, **combinarlas** en una sola, o **regularizar**. La regresión **ridge** estima $\hat{\boldsymbol\beta}_\lambda=(X^\top X+\lambda I)^{-1}X^\top\mathbf{y}$ con variables estandarizadas: sumar $\lambda I$ vuelve la matriz bien condicionada, a costa de un pequeño sesgo y de menor varianza.
+
+```{r}
+Xs <- scale(mtcars[, c("wt", "hp", "disp", "cyl")]); ys <- scale(mtcars$mpg)
+ridge <- function(lambda) drop(solve(crossprod(Xs) + lambda * diag(ncol(Xs)), crossprod(Xs, ys)))
+
+round(rbind(mco_lm = coef(lm(ys ~ Xs - 1)), ridge_0 = ridge(0)), 3)       # con lambda = 0 es MCO
+round(sapply(c(lambda_0 = 0, lambda_1 = 1, lambda_5 = 5, lambda_20 = 20), ridge), 3)
+```
+
+Al crecer $\lambda$ los coeficientes se encogen hacia 0 y se reparten de forma más estable entre variables correlacionadas.
+
 ### Selección de modelos
 
 Los criterios de información equilibran ajuste y complejidad: $\text{AIC}=-2\ell+2p$ y $\text{BIC}=-2\ell+p\ln n$. **Menor es mejor**; BIC penaliza más la complejidad.
@@ -192,3 +405,7 @@ El RMSE de validación cruzada favorece los modelos que generalizan mejor, no lo
 - Intervalo de confianza para la media, de predicción para una observación nueva.
 - Diagnóstico: residuos, `hatvalues()`, `cooks.distance()`, VIF.
 - Comparar modelos con $F$ parcial (anidados), AIC/BIC y, sobre todo, validación cruzada.
+- Los residuos son ortogonales a las columnas de $X$ ($X^\top\mathbf{e}=\mathbf{0}$); con constante suman 0 y $STC=SCReg+SCR$. Sin constante nada de esto se cumple.
+- $\hat{\boldsymbol\beta}$ es insesgado con $V[\hat{\boldsymbol\beta}]=\sigma^2(X^\top X)^{-1}$; $\hat\sigma^2=SCR/(n-p)$ es insesgado y el EMV $SCR/n$ no.
+- Un factor con $k$ niveles necesita $k-1$ ficticias; una interacción hace que el efecto de un predictor dependa de otro (y exige mantener los efectos principales).
+- La colinealidad exacta rompe el rango de $X$; la aproximada infla $V[\hat\beta_j]$ por el factor $VIF_j$ y se mitiga con ridge.
